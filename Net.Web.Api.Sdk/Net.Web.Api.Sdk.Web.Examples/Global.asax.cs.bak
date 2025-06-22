@@ -1,7 +1,10 @@
-﻿using Net.Web.Api.Sdk.Initialization;
+using Net.Web.Api.Sdk.Initialization;
 using System;
-using System.Web;
 using System.Web.Http;
+using Microsoft.AspNetCore.Http;
+
+using System.Threading.Tasks;
+
 
 namespace Net.Web.Api.Sdk.Web.Examples
 {
@@ -10,9 +13,8 @@ namespace Net.Web.Api.Sdk.Web.Examples
     /// Implements the <see cref="HttpApplication" />
     /// </summary>
     /// <seealso cref="HttpApplication" />
-    public class Global : HttpApplication
-    {
-        #region Protected Methods
+    public class Global     {
+RequestDelegate _next = null;        #region Protected Methods
 
         /// <summary>
         /// Handles the Start event of the Application control.
@@ -33,7 +35,7 @@ namespace Net.Web.Api.Sdk.Web.Examples
         {
             GlobalConfiguration.Configuration.UnRegisterWebApi();
         }
-
+publicGlobal(RequestDelegatenext){}
         #endregion
     }
 }

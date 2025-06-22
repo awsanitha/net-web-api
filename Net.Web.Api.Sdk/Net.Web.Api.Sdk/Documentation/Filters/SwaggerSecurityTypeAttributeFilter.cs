@@ -1,10 +1,12 @@
-﻿using Net.Web.Api.Sdk.Documentation.Attributes;
+using Net.Web.Api.Sdk.Documentation.Attributes;
 using Net.Web.Api.Sdk.Documentation.Constants;
 using Net.Web.Api.Sdk.Security.Attributes;
-using Swashbuckle.Swagger;
+using Swashbuckle.AspNetCore.SwaggerGen;
+using Microsoft.OpenApi.Models;
 using System.Linq;
 using System.Web.Http;
-using System.Web.Http.Description;
+using Microsoft.AspNetCore.Mvc.ApiExplorer;
+using System.Reflection;
 
 namespace Net.Web.Api.Sdk.Documentation.Filters
 {
@@ -21,24 +23,24 @@ namespace Net.Web.Api.Sdk.Documentation.Filters
         /// Applies the specified operation.
         /// </summary>
         /// <param name="operation">The operation.</param>
-        /// <param name="schemaRegistry">The schema registry.</param>
-        /// <param name="apiDescription">The API description.</param>
+        /// <param name="context">The operation filter context.</param>
         /// <exception cref="T:System.NotImplementedException"></exception>
-        public void Apply(Operation operation, SchemaRegistry schemaRegistry, ApiDescription apiDescription)
+        public void Apply(OpenApiOperation operation, OperationFilterContext context)
         {
+            var apiDescription = context.ApiDescription;
             var securityType = GetSecurityType(apiDescription);
 
             if (!string.IsNullOrEmpty(securityType))
             {
-                operation.description = securityType;
+                operation.Description = securityType;
             }
             else
             {
-                var attr = apiDescription.GetControllerAndActionAttributes<SwaggerSecurityTypeAttribute>().FirstOrDefault();
+                var attr = apiDescription.ActionDescriptor?.EndpointMetadata?.OfType<SwaggerSecurityTypeAttribute>().FirstOrDefault();
 
                 if (attr != null)
                 {
-                    operation.description = attr.SecurityType;
+                    operation.Description = attr.SecurityType;
                 }
             }
         }
@@ -54,29 +56,31 @@ namespace Net.Web.Api.Sdk.Documentation.Filters
         /// <returns>System.String.</returns>
         private static string GetSecurityType(ApiDescription apiDescription)
         {
-            var actionDescription = apiDescription.ActionDescriptor;
-            var controllerDescriptor = actionDescription?.ControllerDescriptor;
-
-            if (controllerDescriptor == null)
+            if (apiDescription?.ActionDescriptor == null)
             {
                 return null;
             }
 
-            var controllerType = controllerDescriptor.ControllerType;
+            // Get the controller type and action method through reflection
+            var controllerActionDescriptor = apiDescription.ActionDescriptor as Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor;
+            if (controllerActionDescriptor == null)
+            {
+                return null;
+            }
 
+            var controllerType = controllerActionDescriptor.ControllerTypeInfo;
             if (controllerType == null)
             {
                 return null;
             }
 
-            var actionName = actionDescription.ActionName;
-
+            var actionName = controllerActionDescriptor.ActionName;
             if (string.IsNullOrEmpty(actionName))
             {
                 return null;
             }
 
-            var actionMethod = controllerType.GetMethod(actionName);
+            var actionMethod = controllerActionDescriptor.MethodInfo;
 
             if (actionMethod == null)
             {

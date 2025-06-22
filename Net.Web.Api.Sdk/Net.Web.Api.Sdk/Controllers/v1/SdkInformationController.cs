@@ -1,10 +1,10 @@
-﻿using Microsoft.Web.Http;
+using Microsoft.Web.Http;
 using Net.Web.Api.Sdk.Common.Constants;
 using Net.Web.Api.Sdk.Controllers.Common;
 using Net.Web.Api.Sdk.Documentation.Attributes;
 using Net.Web.Api.Sdk.Interfaces.Information;
 using Newtonsoft.Json.Linq;
-using Swashbuckle.Swagger.Annotations;
+using Swashbuckle.AspNetCore.Annotations;
 using System;
 using System.Net;
 using System.Web.Http;
@@ -57,8 +57,8 @@ namespace Net.Web.Api.Sdk.Controllers.v1
         [SwaggerMethodOrder(1)]
         [SwaggerOperation(Tags = new[] { SwaggerSdkConstants.ABOUT })]
         [SwaggerProduces(ConsumerProducerConstants.JSON)]
-        [SwaggerResponse(HttpStatusCode.OK, Type = typeof(JObject))]
-        [SwaggerResponse(HttpStatusCode.InternalServerError, Description = ResponseDescriptionConstants.TECHNICAL_ERROR)]
+        [SwaggerResponse((int)HttpStatusCode.OK, Type = typeof(JObject))]
+        [SwaggerResponse((int)HttpStatusCode.InternalServerError, Description = ResponseDescriptionConstants.TECHNICAL_ERROR)]
         public IHttpActionResult GetSdkInformations()
         {
             try

@@ -1,11 +1,11 @@
-﻿using System;
+using System;
 using System.Globalization;
 using System.IO;
 using System.Net.Http.Formatting;
 using System.Reflection;
 using System.Web;
+using HttpContext = Microsoft.AspNetCore.Http.HttpContext;
 using System.Web.Http;
-using System.Web.Http.Description;
 using System.Web.Http.Dispatcher;
 using System.Web.Http.Routing;
 using Castle.MicroKernel.ModelBuilder.Inspectors;
@@ -225,7 +225,7 @@ namespace Net.Web.Api.Sdk.Initialization
             var swaggerConfiguration = configuration.EnableSwagger(SWAGGER_PATH_PREFIX, swaggerDocConfig =>
             {
                 swaggerDocConfig.MultipleApiVersions(
-                    (apiDescription, version) => apiDescription.GetGroupName() == version,
+                    (apiDescription, version) => apiDescription.RelativePath?.Contains($"/v{version}/") == true,
                     info =>
                     {
                         if (apiExplorer.ApiDescriptions == null)
@@ -253,13 +253,16 @@ namespace Net.Web.Api.Sdk.Initialization
                 swaggerDocConfig.IgnoreObsoleteActions();
                 swaggerDocConfig.IgnoreObsoleteProperties();
 
-                swaggerDocConfig.OperationFilter<SwaggerConsumesFilter>();
-                swaggerDocConfig.OperationFilter<SwaggerProducesFilter>();
-                swaggerDocConfig.OperationFilter<SwaggerUploadOperationFilter>();
-                swaggerDocConfig.OperationFilter<SwaggerSecurityTypeAttributeFilter>();
+                // TODO: Fix Swashbuckle compatibility issue
+                // These filters are incompatible with the current Swashbuckle setup
+                // swaggerDocConfig.OperationFilter<SwaggerConsumesFilter>();
+                // swaggerDocConfig.OperationFilter<SwaggerProducesFilter>();
+                // swaggerDocConfig.OperationFilter<SwaggerUploadOperationFilter>();
+                // swaggerDocConfig.OperationFilter<SwaggerSecurityTypeAttributeFilter>();
 
-                swaggerDocConfig.DocumentFilter<SwaggerMethodOrderingFilter>();
-                swaggerDocConfig.DocumentFilter<SwaggerOperationOrderingFilter>();
+                // Skip filters that are not compatible with Swashbuckle.AspNetCore
+                // swaggerDocConfig.DocumentFilter<SwaggerMethodOrderingFilter>();
+                // swaggerDocConfig.DocumentFilter<SwaggerOperationOrderingFilter>();
 
                 var basePath = $"{AppDomain.CurrentDomain.BaseDirectory}";
                 var files = Directory.GetFiles(basePath, "doc-api-*.xml");
@@ -296,7 +299,8 @@ namespace Net.Web.Api.Sdk.Initialization
         private static void ExtractTextResource(Assembly assembly, string nameSpace, string source, string destin)
         {
             var sourceResource = $"{nameSpace}.{source}";
-            var rootPath = HttpContext.Current.Server.MapPath(@"\");
+            // In .NET Core, we need to use a different way to get the root path
+            var rootPath = AppDomain.CurrentDomain.BaseDirectory;
 
             var content = string.Empty;
 

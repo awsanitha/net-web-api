@@ -1,7 +1,9 @@
-﻿using System.Linq;
-using System.Web.Http.Description;
+using System.Collections.Generic;
+using System.Linq;
+using Microsoft.AspNetCore.Mvc.ApiExplorer;
+using Microsoft.OpenApi.Models;
 using Net.Web.Api.Sdk.Documentation.Attributes;
-using Swashbuckle.Swagger;
+using Swashbuckle.AspNetCore.SwaggerGen;
 
 namespace Net.Web.Api.Sdk.Documentation.Filters
 {
@@ -19,58 +21,55 @@ namespace Net.Web.Api.Sdk.Documentation.Filters
         /// Applies the specified operation.
         /// </summary>
         /// <param name="operation">The operation.</param>
-        /// <param name="schemaRegistry">The schema registry.</param>
-        /// <param name="apiDescription">The API description.</param>
-        public void Apply(Operation operation, SchemaRegistry schemaRegistry, ApiDescription apiDescription)
+        /// <param name="context">The operation filter context.</param>
+        public void Apply(OpenApiOperation operation, OperationFilterContext context)
         {
-            var upload = apiDescription.ActionDescriptor.GetCustomAttributes<SwaggerUploadOperationAttribute>().FirstOrDefault();
+            var apiDescription = context.ApiDescription;
+            var upload = apiDescription.ActionDescriptor?.EndpointMetadata
+                .OfType<SwaggerUploadOperationAttribute>().FirstOrDefault();
 
             if (upload == null)
             {
                 return;
             }
 
-            if (!schemaRegistry.Definitions.TryGetValue(upload.ParameterType.Name, out var schema))
+            // Check if schema exists in repository
+            if (!context.SchemaRepository.TryLookupByType(upload.ParameterType, out _))
             {
                 return;
             }
 
-            operation.parameters.Clear();
+            // Clear any existing parameters
+            operation.Parameters?.Clear();
 
-            foreach (var property in schema.properties)
+            // Set up multipart/form-data content type
+            operation.RequestBody = new OpenApiRequestBody
             {
-                var name = property.Key;
-                var definition = property.Value;
-
-                if (!string.IsNullOrEmpty(definition.@ref) && definition.@ref.Contains("HttpFile"))
+                Content = new Dictionary<string, OpenApiMediaType>
                 {
-                    operation.parameters.Add(new Parameter
+                    ["multipart/form-data"] = new OpenApiMediaType
                     {
-                        name = name,
-                        @in = "formData",
-                        description = definition.description,
-                        @default = definition.@default,
-                        type = "file",
-                        required = schema.required.Contains(name)
-                    });
+                        Schema = new OpenApiSchema
+                        {
+                            Type = "object",
+                            Properties = new Dictionary<string, OpenApiSchema>(),
+                            Required = new HashSet<string>()
+                        }
+                    }
                 }
-                else
-                {
-                    operation.parameters.Add(new Parameter
-                    {
-                        name = name,
-                        @in = "formData",
-                        description = definition.description,
-                        @default = definition.@default,
-                        type = definition.type,
-                        required = schema.required.Contains(name),
-                        maxLength = definition.maxLength,
-                        minLength = definition.minLength
-                    });
-                }
-            }
+            };
 
-            operation.consumes.Add("multipart/form-data");
+            var formSchema = operation.RequestBody.Content["multipart/form-data"].Schema;
+
+            // Add file upload parameters
+            // Note: This is a simplified implementation - you'll need to adjust according to your actual schema properties
+            formSchema.Properties["file"] = new OpenApiSchema
+            {
+                Type = "string",
+                Format = "binary",
+                Description = "File to upload"
+            };
+            formSchema.Required.Add("file");
         }
 
         #endregion

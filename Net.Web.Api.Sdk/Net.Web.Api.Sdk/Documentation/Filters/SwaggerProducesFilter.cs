@@ -1,7 +1,10 @@
-﻿using Net.Web.Api.Sdk.Documentation.Attributes;
-using Swashbuckle.Swagger;
+using Net.Web.Api.Sdk.Documentation.Attributes;
+using Microsoft.OpenApi.Models;
+using Swashbuckle.AspNetCore.SwaggerGen;
 using System.Linq;
-using System.Web.Http.Description;
+using Microsoft.AspNetCore.Mvc.ApiExplorer;
+using System.Collections.Generic;
+using System.Reflection;
 
 namespace Net.Web.Api.Sdk.Documentation.Filters
 {
@@ -18,20 +21,36 @@ namespace Net.Web.Api.Sdk.Documentation.Filters
         /// Applies the specified operation.
         /// </summary>
         /// <param name="operation">The operation.</param>
-        /// <param name="schemaRegistry">The schema registry.</param>
-        /// <param name="apiDescription">The API description.</param>
-        /// <exception cref="T:System.NotImplementedException"></exception>
-        public void Apply(Operation operation, SchemaRegistry schemaRegistry, ApiDescription apiDescription)
+        /// <param name="context">The operation filter context.</param>
+        public void Apply(OpenApiOperation operation, OperationFilterContext context)
         {
-            var attribute = apiDescription.GetControllerAndActionAttributes<SwaggerProducesAttribute>().SingleOrDefault();
+            var attribute = context.MethodInfo?.GetCustomAttributes<SwaggerProducesAttribute>(true)
+                .FirstOrDefault() ?? context.MethodInfo?.DeclaringType?
+                .GetCustomAttributes<SwaggerProducesAttribute>(true).FirstOrDefault();
 
             if (attribute == null)
             {
                 return;
             }
 
-            operation.produces.Clear();
-            operation.produces = attribute.ContentTypes.ToList();
+            // Clear the content types for each response
+            foreach (var response in operation.Responses.Values)
+            {
+                if (response.Content == null)
+                {
+                    response.Content = new Dictionary<string, OpenApiMediaType>();
+                }
+                else
+                {
+                    response.Content.Clear();
+                }
+
+                // Add the new content types
+                foreach (var contentType in attribute.ContentTypes)
+                {
+                    response.Content[contentType] = new OpenApiMediaType();
+                }
+            }
         }
 
         #endregion

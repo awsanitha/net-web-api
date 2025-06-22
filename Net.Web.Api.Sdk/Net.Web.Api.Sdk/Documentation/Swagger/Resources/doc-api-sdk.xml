@@ -708,19 +708,18 @@
         <member name="T:Net.Web.Api.Sdk.Documentation.Filters.Common.SwaggerOrderingFilter">
             <summary>
             Class SwaggerOrderingFilter.
-            Implements the <see cref="T:Swashbuckle.Swagger.IDocumentFilter" />
+            Implements the <see cref="T:Swashbuckle.AspNetCore.SwaggerGen.IDocumentFilter" />
             </summary>
-            <seealso cref="T:Swashbuckle.Swagger.IDocumentFilter" />
+            <seealso cref="T:Swashbuckle.AspNetCore.SwaggerGen.IDocumentFilter" />
         </member>
-        <member name="M:Net.Web.Api.Sdk.Documentation.Filters.Common.SwaggerOrderingFilter.Apply(Swashbuckle.Swagger.SwaggerDocument,Swashbuckle.Swagger.SchemaRegistry,System.Web.Http.Description.IApiExplorer)">
+        <member name="M:Net.Web.Api.Sdk.Documentation.Filters.Common.SwaggerOrderingFilter.Apply(Microsoft.OpenApi.Models.OpenApiDocument,Swashbuckle.AspNetCore.SwaggerGen.DocumentFilterContext)">
             <summary>
             Applies the specified swagger document.
             </summary>
             <param name="swaggerDoc">The swagger document.</param>
-            <param name="schemaRegistry">The schema registry.</param>
-            <param name="apiExplorer">The API explorer.</param>
+            <param name="context">The document filter context.</param>
         </member>
-        <member name="M:Net.Web.Api.Sdk.Documentation.Filters.Common.SwaggerOrderingFilter.GetInvokeMethod(Swashbuckle.Swagger.PathItem,System.String@)">
+        <member name="M:Net.Web.Api.Sdk.Documentation.Filters.Common.SwaggerOrderingFilter.GetInvokeMethod(Microsoft.OpenApi.Models.OpenApiPathItem,System.String@)">
             <summary>
             Gets the invoke method.
             </summary>
@@ -728,15 +727,14 @@
             <param name="tag">The tag.</param>
             <returns>System.String.</returns>
         </member>
-        <member name="M:Net.Web.Api.Sdk.Documentation.Filters.Common.SwaggerOrderingFilter.OrderingApply(Swashbuckle.Swagger.SwaggerDocument,Swashbuckle.Swagger.SchemaRegistry,System.Web.Http.Description.IApiExplorer)">
+        <member name="M:Net.Web.Api.Sdk.Documentation.Filters.Common.SwaggerOrderingFilter.OrderingApply(Microsoft.OpenApi.Models.OpenApiDocument,Swashbuckle.AspNetCore.SwaggerGen.DocumentFilterContext)">
             <summary>
             Orderings the apply.
             </summary>
             <param name="swaggerDoc">The swagger document.</param>
-            <param name="schemaRegistry">The schema registry.</param>
-            <param name="apiExplorer">The API explorer.</param>
+            <param name="context">The document filter context.</param>
         </member>
-        <member name="M:Net.Web.Api.Sdk.Documentation.Filters.Common.SwaggerOrderingFilter.GetApiOrder(System.Web.Http.Description.ApiDescription)">
+        <member name="M:Net.Web.Api.Sdk.Documentation.Filters.Common.SwaggerOrderingFilter.GetApiOrder(Microsoft.AspNetCore.Mvc.ApiExplorer.ApiDescription)">
             <summary>
             Gets the API order.
             </summary>
@@ -778,15 +776,13 @@
             Class SwaggerConsumesFilter.
             </summary>
         </member>
-        <member name="M:Net.Web.Api.Sdk.Documentation.Filters.SwaggerConsumesFilter.Apply(Swashbuckle.Swagger.Operation,Swashbuckle.Swagger.SchemaRegistry,System.Web.Http.Description.ApiDescription)">
+        <member name="M:Net.Web.Api.Sdk.Documentation.Filters.SwaggerConsumesFilter.Apply(Microsoft.OpenApi.Models.OpenApiOperation,Swashbuckle.AspNetCore.SwaggerGen.OperationFilterContext)">
             <inheritdoc />
             <summary>
             Applies the specified operation.
             </summary>
             <param name="operation">The operation.</param>
-            <param name="schemaRegistry">The schema registry.</param>
-            <param name="apiDescription">The API description.</param>
-            <exception cref="T:System.NotImplementedException"></exception>
+            <param name="context">The operation filter context.</param>
         </member>
         <member name="T:Net.Web.Api.Sdk.Documentation.Filters.SwaggerMethodOrderingFilter">
             <summary>
@@ -802,37 +798,36 @@
             </summary>
             <seealso cref="T:Net.Web.Api.Sdk.Documentation.Filters.Common.SwaggerOrderingFilter" />
         </member>
-        <member name="M:Net.Web.Api.Sdk.Documentation.Filters.SwaggerOperationOrderingFilter.Apply(Swashbuckle.Swagger.SwaggerDocument,Swashbuckle.Swagger.SchemaRegistry,System.Web.Http.Description.IApiExplorer)">
+        <member name="M:Net.Web.Api.Sdk.Documentation.Filters.SwaggerOperationOrderingFilter.Apply(Microsoft.OpenApi.Models.OpenApiDocument,Swashbuckle.AspNetCore.SwaggerGen.DocumentFilterContext)">
             <summary>
             Applies the specified swagger document.
             </summary>
             <param name="swaggerDoc">The swagger document.</param>
-            <param name="schemaRegistry">The schema registry.</param>
-            <param name="apiExplorer">The API explorer.</param>
+            <param name="context">The document filter context.</param>
         </member>
-        <member name="M:Net.Web.Api.Sdk.Documentation.Filters.SwaggerOperationOrderingFilter.GetOperationOrder(Swashbuckle.Swagger.SwaggerDocument,System.Web.Http.Description.IApiExplorer)">
+        <member name="M:Net.Web.Api.Sdk.Documentation.Filters.SwaggerOperationOrderingFilter.GetOperationOrder(Microsoft.OpenApi.Models.OpenApiDocument,Swashbuckle.AspNetCore.SwaggerGen.DocumentFilterContext)">
             <summary>
             Gets the operation order.
             </summary>
             <param name="swaggerDoc">The swagger document.</param>
-            <param name="apiExplorer">The API explorer.</param>
+            <param name="context">The document filter context.</param>
             <returns>System.String[].</returns>
         </member>
-        <member name="M:Net.Web.Api.Sdk.Documentation.Filters.SwaggerOperationOrderingFilter.ProcessItemMethodOrdering(System.Collections.Generic.IDictionary{System.String,Swashbuckle.Swagger.PathItem},System.Web.Http.Description.IApiExplorer)">
+        <member name="M:Net.Web.Api.Sdk.Documentation.Filters.SwaggerOperationOrderingFilter.ProcessItemMethodOrdering(System.Collections.Generic.IDictionary{System.String,Microsoft.OpenApi.Models.OpenApiPathItem},Swashbuckle.AspNetCore.SwaggerGen.DocumentFilterContext)">
             <summary>
             Processes the item method ordering.
             </summary>
             <param name="group">The group.</param>
-            <param name="apiExplorer">The API explorer.</param>
-            <returns>IDictionary&lt;System.String, PathItem&gt;.</returns>
+            <param name="context">The document filter context.</param>
+            <returns>IDictionary&lt;System.String, OpenApiPathItem&gt;.</returns>
         </member>
-        <member name="M:Net.Web.Api.Sdk.Documentation.Filters.SwaggerOperationOrderingFilter.ProcessMethodOrdering(System.Collections.Generic.Dictionary{System.Int32,System.Collections.Generic.IDictionary{System.String,Swashbuckle.Swagger.PathItem}},System.Web.Http.Description.IApiExplorer)">
+        <member name="M:Net.Web.Api.Sdk.Documentation.Filters.SwaggerOperationOrderingFilter.ProcessMethodOrdering(System.Collections.Generic.Dictionary{System.Int32,System.Collections.Generic.IDictionary{System.String,Microsoft.OpenApi.Models.OpenApiPathItem}},Swashbuckle.AspNetCore.SwaggerGen.DocumentFilterContext)">
             <summary>
             Processes the method ordering.
             </summary>
             <param name="groups">The groups.</param>
-            <param name="apiExplorer">The API explorer.</param>
-            <returns>Dictionary&lt;System.Int32, IDictionary&lt;System.String, PathItem&gt;&gt;.</returns>
+            <param name="context">The document filter context.</param>
+            <returns>Dictionary&lt;System.Int32, IDictionary&lt;System.String, OpenApiPathItem&gt;&gt;.</returns>
         </member>
         <member name="T:Net.Web.Api.Sdk.Documentation.Filters.SwaggerProducesFilter">
             <inheritdoc />
@@ -840,15 +835,13 @@
             Class SwaggerProducesFilter.
             </summary>
         </member>
-        <member name="M:Net.Web.Api.Sdk.Documentation.Filters.SwaggerProducesFilter.Apply(Swashbuckle.Swagger.Operation,Swashbuckle.Swagger.SchemaRegistry,System.Web.Http.Description.ApiDescription)">
+        <member name="M:Net.Web.Api.Sdk.Documentation.Filters.SwaggerProducesFilter.Apply(Microsoft.OpenApi.Models.OpenApiOperation,Swashbuckle.AspNetCore.SwaggerGen.OperationFilterContext)">
             <inheritdoc />
             <summary>
             Applies the specified operation.
             </summary>
             <param name="operation">The operation.</param>
-            <param name="schemaRegistry">The schema registry.</param>
-            <param name="apiDescription">The API description.</param>
-            <exception cref="T:System.NotImplementedException"></exception>
+            <param name="context">The operation filter context.</param>
         </member>
         <member name="T:Net.Web.Api.Sdk.Documentation.Filters.SwaggerSecurityTypeAttributeFilter">
             <inheritdoc />
@@ -856,17 +849,16 @@
             Class SwaggerSecurityTypeAttributeFilter.
             </summary>
         </member>
-        <member name="M:Net.Web.Api.Sdk.Documentation.Filters.SwaggerSecurityTypeAttributeFilter.Apply(Swashbuckle.Swagger.Operation,Swashbuckle.Swagger.SchemaRegistry,System.Web.Http.Description.ApiDescription)">
+        <member name="M:Net.Web.Api.Sdk.Documentation.Filters.SwaggerSecurityTypeAttributeFilter.Apply(Microsoft.OpenApi.Models.OpenApiOperation,Swashbuckle.AspNetCore.SwaggerGen.OperationFilterContext)">
             <inheritdoc />
             <summary>
             Applies the specified operation.
             </summary>
             <param name="operation">The operation.</param>
-            <param name="schemaRegistry">The schema registry.</param>
-            <param name="apiDescription">The API description.</param>
+            <param name="context">The operation filter context.</param>
             <exception cref="T:System.NotImplementedException"></exception>
         </member>
-        <member name="M:Net.Web.Api.Sdk.Documentation.Filters.SwaggerSecurityTypeAttributeFilter.GetSecurityType(System.Web.Http.Description.ApiDescription)">
+        <member name="M:Net.Web.Api.Sdk.Documentation.Filters.SwaggerSecurityTypeAttributeFilter.GetSecurityType(Microsoft.AspNetCore.Mvc.ApiExplorer.ApiDescription)">
             <summary>
             Gets the type of the security.
             </summary>
@@ -886,14 +878,13 @@
             </summary>
             <seealso cref="T:Web.Api.Toolkit.Swashbuckle.Swagger.IOperationFilter" />
         </member>
-        <member name="M:Net.Web.Api.Sdk.Documentation.Filters.SwaggerUploadOperationFilter.Apply(Swashbuckle.Swagger.Operation,Swashbuckle.Swagger.SchemaRegistry,System.Web.Http.Description.ApiDescription)">
+        <member name="M:Net.Web.Api.Sdk.Documentation.Filters.SwaggerUploadOperationFilter.Apply(Microsoft.OpenApi.Models.OpenApiOperation,Swashbuckle.AspNetCore.SwaggerGen.OperationFilterContext)">
             <inheritdoc />
             <summary>
             Applies the specified operation.
             </summary>
             <param name="operation">The operation.</param>
-            <param name="schemaRegistry">The schema registry.</param>
-            <param name="apiDescription">The API description.</param>
+            <param name="context">The operation filter context.</param>
         </member>
         <member name="T:Net.Web.Api.Sdk.Extensions.ClaimExtensions">
             <summary>

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Configuration;
 using System.Globalization;
@@ -295,12 +295,12 @@ namespace Net.Web.Api.Sdk.Implementations.Token
         {
             var count = 0;
 
-            using (var db = new LiteDatabase(_tokenDataBase))
+using (var db = new LiteDatabase(_tokenDataBase))
             {
                 var tokens = db.GetCollection<JwtTokenUsedOrRevoked>(TOKEN_DATA_COLLECTION);
                 var now = DateTime.UtcNow;
 
-                count = tokens.Delete(c => c.ExpirationDate.CompareTo(now) > 0);
+                count = tokens.DeleteMany(c => c.ExpirationDate.CompareTo(now) > 0);
             }
 
             return count;

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Web.Http;
 using Castle.MicroKernel.Registration;
 using Castle.MicroKernel.SubSystems.Configuration;
@@ -25,7 +25,7 @@ namespace Net.Web.Api.Sdk.Injection.Installers
         {
             container.Register(Classes.FromAssemblyInDirectory(new AssemblyFilter(AppDomain.CurrentDomain.RelativeSearchPath))
                 .BasedOn<ApiController>()
-                .LifestylePerWebRequest());
+                .LifestyleScoped());
         }
 
         #endregion

@@ -1,10 +1,11 @@
-﻿using Net.Web.Api.Sdk.Documentation.Attributes;
+using Net.Web.Api.Sdk.Documentation.Attributes;
 using Net.Web.Api.Sdk.Documentation.Filters.Common;
-using Swashbuckle.Swagger;
+using Microsoft.AspNetCore.Mvc.ApiExplorer;
+using Microsoft.OpenApi.Models;
+using Swashbuckle.AspNetCore.SwaggerGen;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using System.Web.Http.Description;
 
 namespace Net.Web.Api.Sdk.Documentation.Filters
 {
@@ -13,36 +14,35 @@ namespace Net.Web.Api.Sdk.Documentation.Filters
     /// Implements the <see cref="SwaggerOrderingFilter" />
     /// </summary>
     /// <seealso cref="SwaggerOrderingFilter" />
-    public class SwaggerOperationOrderingFilter : SwaggerOrderingFilter
+public class SwaggerOperationOrderingFilter : SwaggerOrderingFilter
+{
+    #region IDocumentFilter Implementations
+
+
+    /// <summary>
+    /// Applies the specified swagger document.
+    /// </summary>
+    /// <param name="swaggerDoc">The swagger document.</param>
+    /// <param name="context">The document filter context.</param>
+    public override void Apply(OpenApiDocument swaggerDoc, DocumentFilterContext context)
     {
-        #region IDocumentFilter Implementations
+        var paths = swaggerDoc.Paths;
 
-
-        /// <summary>
-        /// Applies the specified swagger document.
-        /// </summary>
-        /// <param name="swaggerDoc">The swagger document.</param>
-        /// <param name="schemaRegistry">The schema registry.</param>
-        /// <param name="apiExplorer">The API explorer.</param>
-        public override void Apply(SwaggerDocument swaggerDoc, SchemaRegistry schemaRegistry, IApiExplorer apiExplorer)
+        if (paths == null || !paths.Any())
         {
-            var paths = swaggerDoc.paths;
+            return;
+        }
 
-            if (paths == null || !paths.Any())
-            {
-                return;
-            }
+        var allOperationNames = GetOperationOrder(swaggerDoc, context);
 
-            var allOperationNames = GetOperationOrder(swaggerDoc, apiExplorer);
+        if (allOperationNames == null || allOperationNames.Length == 0)
+        {
+            OrderingApply(swaggerDoc, context);
 
-            if (allOperationNames == null || allOperationNames.Length == 0)
-            {
-                OrderingApply(swaggerDoc, schemaRegistry, apiExplorer);
+            return;
+        }
 
-                return;
-            }
-
-            var groups = new Dictionary<int, IDictionary<string, PathItem>>();
+        var groups = new Dictionary<int, IDictionary<string, OpenApiPathItem>>();
 
             foreach (var path in paths)
             {
@@ -55,71 +55,82 @@ namespace Net.Web.Api.Sdk.Documentation.Filters
                     position = int.MaxValue;
                 }
 
-                IDictionary<string, PathItem> dictionary;
+        IDictionary<string, OpenApiPathItem> dictionary;
 
-                if (groups.ContainsKey(position))
-                {
-                    dictionary = groups[position];
+        if (groups.ContainsKey(position))
+        {
+            dictionary = groups[position];
 
-                    dictionary.Add(path.Key, path.Value);
-                }
-                else
-                {
-                    dictionary = new Dictionary<string, PathItem> { { path.Key, path.Value } };
+            dictionary.Add(path.Key, path.Value);
+        }
+        else
+        {
+            dictionary = new Dictionary<string, OpenApiPathItem> { { path.Key, path.Value } };
 
-                    groups.Add(position, dictionary);
-                }
+            groups.Add(position, dictionary);
+        }
             }
 
-            groups = ProcessMethodOrdering(groups, apiExplorer);
-            groups = groups.OrderBy(c => c.Key).ToDictionary(c => c.Key, c => c.Value);
+        groups = ProcessMethodOrdering(groups, context);
+        groups = groups.OrderBy(c => c.Key).ToDictionary(c => c.Key, c => c.Value);
 
-            var result = new Dictionary<string, PathItem>();
+        var result = new Dictionary<string, OpenApiPathItem>();
 
-            foreach (var item in groups)
+        foreach (var item in groups)
+        {
+            foreach (var api in item.Value)
             {
-                foreach (var api in item.Value)
-                {
-                    result.Add(api.Key, api.Value);
-                }
+                result.Add(api.Key, api.Value);
             }
+        }
 
-            swaggerDoc.paths = result;
+        swaggerDoc.Paths.Clear();
+        foreach (var item in result)
+        {
+            swaggerDoc.Paths.Add(item.Key, item.Value);
+        }
         }
 
         #endregion
 
         #region Private Methods
 
-        /// <summary>
-        /// Gets the operation order.
-        /// </summary>
-        /// <param name="swaggerDoc">The swagger document.</param>
-        /// <param name="apiExplorer">The API explorer.</param>
-        /// <returns>System.String[].</returns>
-        [SuppressMessage("ReSharper", "PossibleNullReferenceException")]
-        private static string[] GetOperationOrder(SwaggerDocument swaggerDoc, IApiExplorer apiExplorer)
+    /// <summary>
+    /// Gets the operation order.
+    /// </summary>
+    /// <param name="swaggerDoc">The swagger document.</param>
+    /// <param name="context">The document filter context.</param>
+    /// <returns>System.String[].</returns>
+    [SuppressMessage("ReSharper", "PossibleNullReferenceException")]
+    private static string[] GetOperationOrder(OpenApiDocument swaggerDoc, DocumentFilterContext context)
         {
-            var paths = swaggerDoc.paths;
+        var paths = swaggerDoc.Paths;
 
-            if (paths == null || !paths.Any())
-            {
-                return null;
-            }
+        if (paths == null || !paths.Any())
+        {
+            return null;
+        }
 
             var attributes = new List<SwaggerOperationOrderAttribute>();
 
             foreach (var path in paths)
             {
-                var key = GetInvokeMethod(path.Value, out _);
-                var apiKey = $"{key}{path.Key.TrimStart('/')}";
-                var apiFound = apiExplorer.ApiDescriptions.FirstOrDefault(c => c.ID.StartsWith(apiKey));
-                var apiDescriptor = apiFound.ActionDescriptor;
-                var controllerDescriptor = apiDescriptor.ControllerDescriptor;
-                var controllerType = controllerDescriptor.ControllerType;
+            var key = GetInvokeMethod(path.Value, out _);
+            var apiKey = $"{key}{path.Key.TrimStart('/')}";
+            var apiFound = context.ApiDescriptions.FirstOrDefault(c => c.RelativePath != null && c.HttpMethod != null &&
+                $"{c.HttpMethod}{c.RelativePath}".StartsWith(apiKey));
+
+            if (apiFound?.ActionDescriptor == null)
+                continue;
+
+            var controllerActionDescriptor = apiFound.ActionDescriptor as Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor;
+            if (controllerActionDescriptor == null)
+                continue;
+
+            var controllerType = controllerActionDescriptor.ControllerTypeInfo;
                 var customAttribute = controllerType.GetCustomAttributes(typeof(SwaggerOperationOrderAttribute), true).FirstOrDefault()
                     as SwaggerOperationOrderAttribute ??
-                        controllerType.BaseType.GetCustomAttributes(typeof(SwaggerOperationOrderAttribute), true).FirstOrDefault()
+                        controllerType.BaseType?.GetCustomAttributes(typeof(SwaggerOperationOrderAttribute), true).FirstOrDefault()
                     as SwaggerOperationOrderAttribute;
 
                 if (customAttribute == null)
@@ -168,22 +179,23 @@ namespace Net.Web.Api.Sdk.Documentation.Filters
             return result.ToArray();
         }
 
-        /// <summary>
-        /// Processes the item method ordering.
-        /// </summary>
-        /// <param name="group">The group.</param>
-        /// <param name="apiExplorer">The API explorer.</param>
-        /// <returns>IDictionary&lt;System.String, PathItem&gt;.</returns>
-        private static IDictionary<string, PathItem> ProcessItemMethodOrdering(IDictionary<string, PathItem> group,
-            IApiExplorer apiExplorer)
+    /// <summary>
+    /// Processes the item method ordering.
+    /// </summary>
+    /// <param name="group">The group.</param>
+    /// <param name="context">The document filter context.</param>
+    /// <returns>IDictionary&lt;System.String, OpenApiPathItem&gt;.</returns>
+    private static IDictionary<string, OpenApiPathItem> ProcessItemMethodOrdering(IDictionary<string, OpenApiPathItem> group,
+        DocumentFilterContext context)
         {
             var tagGroups = new Dictionary<string, IList<ApiOrder>>();
 
             foreach (var path in group)
             {
-                var key = GetInvokeMethod(path.Value, out var tag);
-                var apiKey = $"{key}{path.Key.TrimStart('/')}";
-                var apiFound = apiExplorer.ApiDescriptions.FirstOrDefault(c => c.ID.StartsWith(apiKey));
+            var key = GetInvokeMethod(path.Value, out var tag);
+            var apiKey = $"{key}{path.Key.TrimStart('/')}";
+            var apiFound = context.ApiDescriptions.FirstOrDefault(c => c.RelativePath != null && c.HttpMethod != null &&
+                $"{c.HttpMethod}{c.RelativePath}".StartsWith(apiKey));
 
                 if (!tagGroups.ContainsKey(tag))
                 {
@@ -212,24 +224,24 @@ namespace Net.Web.Api.Sdk.Documentation.Filters
             return list.OrderBy(c => c.OperationName).ToDictionary(c => c.PathKey, c => c.PathValue);
         }
 
-        /// <summary>
-        /// Processes the method ordering.
-        /// </summary>
-        /// <param name="groups">The groups.</param>
-        /// <param name="apiExplorer">The API explorer.</param>
-        /// <returns>Dictionary&lt;System.Int32, IDictionary&lt;System.String, PathItem&gt;&gt;.</returns>
-        private static Dictionary<int, IDictionary<string, PathItem>> ProcessMethodOrdering(Dictionary<int, IDictionary<string, PathItem>> groups,
-            IApiExplorer apiExplorer)
+    /// <summary>
+    /// Processes the method ordering.
+    /// </summary>
+    /// <param name="groups">The groups.</param>
+    /// <param name="context">The document filter context.</param>
+    /// <returns>Dictionary&lt;System.Int32, IDictionary&lt;System.String, OpenApiPathItem&gt;&gt;.</returns>
+    private static Dictionary<int, IDictionary<string, OpenApiPathItem>> ProcessMethodOrdering(Dictionary<int, IDictionary<string, OpenApiPathItem>> groups,
+        DocumentFilterContext context)
+    {
+        var result = new Dictionary<int, IDictionary<string, OpenApiPathItem>>();
+
+        foreach (var item in groups)
         {
-            var result = new Dictionary<int, IDictionary<string, PathItem>>();
-
-            foreach (var item in groups)
-            {
-                result.Add(item.Key, ProcessItemMethodOrdering(item.Value, apiExplorer));
-            }
-
-            return result;
+            result.Add(item.Key, ProcessItemMethodOrdering(item.Value, context));
         }
+
+        return result;
+    }
 
         #endregion
     }
