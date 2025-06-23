@@ -17,7 +17,7 @@ namespace Net.Web.Api.Sdk.Web.Examples.Models
         /// <value>The file information.</value>
         [Required]
         [UploadFile]
-        public HttpFile FileInformation { get; set; }
+        public HttpFile? FileInformation { get; set; }
 
         #endregion
     }

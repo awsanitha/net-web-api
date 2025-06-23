@@ -1,0 +1,3 @@
+﻿<Project>
+  <Import Project="../build/Net.Web.Api.Sdk.Web.Examples.props" />
+</Project>
