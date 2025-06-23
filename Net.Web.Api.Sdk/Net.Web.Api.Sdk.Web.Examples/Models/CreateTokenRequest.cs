@@ -19,7 +19,7 @@ namespace Net.Web.Api.Sdk.Web.Examples.Models
         [Required]
         [StringLength(16)]
         [TokenNameExists]
-        public string Name { get; set; }
+        public string? Name { get; set; }
 
         /// <summary>
         /// The token unique identifier that will be used as identity name.
@@ -30,7 +30,7 @@ namespace Net.Web.Api.Sdk.Web.Examples.Models
         /// <value>The unique identifier.</value>
         [Required]
         [StringLength(64)]
-        public string UniqueId { get; set; }
+        public string? UniqueId { get; set; }
 
         /// <summary>
         /// The token payload.
@@ -40,7 +40,7 @@ namespace Net.Web.Api.Sdk.Web.Examples.Models
         /// </summary>
         /// <value>The payload.</value>
         [TokenPayloadValid]
-        public List<KeyValuePair<string, string>> Payload { get; set; }
+        public List<KeyValuePair<string, string>>? Payload { get; set; }
 
         #endregion
     }

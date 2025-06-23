@@ -476,9 +476,7 @@ namespace Net.Web.Api.Sdk.Models.Token
 
             if (validatingContent != null && validatingContent.Length > 0)
             {
-                var validatingCertificate = new X509Certificate2();
-
-                validatingCertificate.Import(validatingContent);
+                var validatingCertificate = new X509Certificate2(validatingContent);
 
                 ValidatingTokenCredential = new TokenCredential
                 {
@@ -495,15 +493,15 @@ namespace Net.Web.Api.Sdk.Models.Token
                 return;
             }
 
-            var signingCertificate = new X509Certificate2();
+            X509Certificate2 signingCertificate;
 
             if (signingCertificatePassword == null)
             {
-                signingCertificate.Import(signingContent);
+                signingCertificate = new X509Certificate2(signingContent);
             }
             else
             {
-                signingCertificate.Import(signingContent, signingCertificatePassword, X509KeyStorageFlags.Exportable);
+                signingCertificate = new X509Certificate2(signingContent, signingCertificatePassword, X509KeyStorageFlags.Exportable);
             }
 
             SigningTokenCredential = new TokenCredential
