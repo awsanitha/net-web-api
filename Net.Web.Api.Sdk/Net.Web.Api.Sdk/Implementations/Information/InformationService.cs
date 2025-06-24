@@ -1,7 +1,6 @@
 ﻿using Net.Web.Api.Sdk.Interfaces.Information;
 using Net.Web.Api.Sdk.Interfaces.Token;
 using Net.Web.Api.Sdk.Properties;
-using NuGet;
 using System;
 using System.Collections.Generic;
 using System.Dynamic;
@@ -9,6 +8,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Web;
+using System.Xml.Linq;
 
 namespace Net.Web.Api.Sdk.Implementations.Information
 {
@@ -98,22 +98,30 @@ namespace Net.Web.Api.Sdk.Implementations.Information
 
             if(System.IO.File.Exists(nugetPackageConfigFileName))
             {
-                var packageConfiguration = new PackageReferenceFile(nugetPackageConfigFileName);
-                var allPacakges = packageConfiguration.GetPackageReferences();
-                var nugetPackages = new List<dynamic>();
-
-                foreach (var package in allPacakges)
+                try
                 {
-                    dynamic onePackage = new ExpandoObject();
+                    var doc = XDocument.Load(nugetPackageConfigFileName);
+                    var nugetPackages = new List<dynamic>();
 
-                    onePackage.name = package.Id;
-                    onePackage.version = package.Version.ToString();
-                    onePackage.framework = package.TargetFramework.Version.ToString();
+                    var packages = doc.Descendants("package");
+                    foreach (var package in packages)
+                    {
+                        dynamic onePackage = new ExpandoObject();
 
-                    nugetPackages.Add(onePackage);
+                        onePackage.name = package.Attribute("id")?.Value ?? "";
+                        onePackage.version = package.Attribute("version")?.Value ?? "";
+                        onePackage.framework = package.Attribute("targetFramework")?.Value ?? "";
+
+                        nugetPackages.Add(onePackage);
+                    }
+
+                    result.packages = nugetPackages;
                 }
-
-                result.packages = nugetPackages;
+                catch (Exception)
+                {
+                    // If we can't parse the packages.config, just skip it
+                    result.packages = new List<dynamic>();
+                }
             }
 
             return result;

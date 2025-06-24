@@ -25,7 +25,7 @@ namespace Net.Web.Api.Sdk.Injection.Installers
         {
             container.Register(Classes.FromAssemblyInDirectory(new AssemblyFilter(AppDomain.CurrentDomain.RelativeSearchPath))
                 .BasedOn<ApiController>()
-                .LifestylePerWebRequest());
+                .LifestyleScoped());
         }
 
         #endregion
