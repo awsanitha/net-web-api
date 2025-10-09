@@ -1,6 +1,6 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Security.Claims;
-using System.Web.Http.Controllers;
+using Microsoft.AspNetCore.Http;
 using Microsoft.IdentityModel.Tokens;
 using Net.Web.Api.Sdk.Injection.Attributes;
 using Net.Web.Api.Sdk.Models.Token;
@@ -29,27 +29,35 @@ namespace Net.Web.Api.Sdk.Interfaces.Token
         string CreateToken(string tokenName, string identityName, Dictionary<string, string> customClaims = null);
 
         /// <summary>
+        /// Validates the token.
+        /// </summary>
+        /// <param name="token">The token to validate.</param>
+        /// <param name="validationRequest">The validation request parameters.</param>
+        /// <returns>JwtTokenValidationResult.</returns>
+        JwtTokenValidationResult ValidateToken(string token, JwtTokenValidationRequest validationRequest);
+
+        /// <summary>
         /// Gets the token validation parameters.
         /// </summary>
-        /// <param name="validateExipration">if set to <c>true</c> [validate exipration].</param>
+        /// <param name="validateExpiration">if set to <c>true</c> [validate expiration].</param>
         /// <param name="issuers">The issuers.</param>
         /// <param name="audiences">The audiences.</param>
         /// <returns>TokenValidationParameters.</returns>
-        TokenValidationParameters GetTokenValidationParameters(bool validateExipration = false, string issuers = null, string audiences = null);
+        TokenValidationParameters GetTokenValidationParameters(bool validateExpiration = false, string issuers = null, string audiences = null);
 
         /// <summary>
         /// Gets the token payload.
         /// </summary>
-        /// <param name="context">The context.</param>
+        /// <param name="httpContext">The HTTP context.</param>
         /// <returns>Dictionary&lt;System.String, System.String&gt;.</returns>
-        Dictionary<string, string> GetTokenPayload(HttpActionContext context);
+        Dictionary<string, string> GetTokenPayload(HttpContext httpContext);
 
         /// <summary>
         /// Gets the identity payload.
         /// </summary>
-        /// <param name="context">The context.</param>
+        /// <param name="httpContext">The HTTP context.</param>
         /// <returns>Dictionary&lt;System.String, System.String&gt;.</returns>
-        Dictionary<string, string> GetIdentityPayload(HttpActionContext context);
+        Dictionary<string, string> GetIdentityPayload(HttpContext httpContext);
 
         /// <summary>
         /// Determines whether [is token revoked] [the specified token].

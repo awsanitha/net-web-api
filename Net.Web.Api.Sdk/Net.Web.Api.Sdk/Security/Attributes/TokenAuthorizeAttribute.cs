@@ -1,4 +1,7 @@
-﻿using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.IdentityModel.Tokens;
 using Net.Web.Api.Sdk.Extensions;
 using Net.Web.Api.Sdk.Injection.Containers;
 using Net.Web.Api.Sdk.Interfaces.Token;
@@ -6,23 +9,20 @@ using Net.Web.Api.Sdk.Models.Token;
 using System;
 using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
-using System.Net;
-using System.Net.Http;
 using System.Security.Claims;
-using System.Threading;
 using System.Threading.Tasks;
-using System.Web.Http;
-using System.Web.Http.Controllers;
 
 namespace Net.Web.Api.Sdk.Security.Attributes
 {
     /// <summary>
     /// Class TokenAuthorizeAttribute.
-    /// Implements the <see cref="AuthorizeAttribute" />
+    /// Implements the <see cref="Attribute" />
+    /// Implements the <see cref="IAuthorizationFilter" />
     /// </summary>
-    /// <seealso cref="AuthorizeAttribute" />
+    /// <seealso cref="Attribute" />
+    /// <seealso cref="IAuthorizationFilter" />
     [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method)]
-    public class TokenAuthorizeAttribute : AuthorizeAttribute
+    public class TokenAuthorizeAttribute : Attribute, IAuthorizationFilter
     {
         #region Public Properties
 
@@ -52,121 +52,77 @@ namespace Net.Web.Api.Sdk.Security.Attributes
 
         #endregion
 
-        #region Constructors
+        #region IAuthorizationFilter Implementation
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="TokenAuthorizeAttribute"/> class.
+        /// Called early in the filter pipeline to confirm request is authorized.
         /// </summary>
-        public TokenAuthorizeAttribute() => ValidateExpiration = true;
+        /// <param name="context">The authorization filter context.</param>
+        public void OnAuthorization(AuthorizationFilterContext context)
+        {
+            try
+            {
+                var request = context.HttpContext.Request;
+                var token = ExtractTokenFromRequest(request);
+
+                if (string.IsNullOrEmpty(token))
+                {
+                    context.Result = new UnauthorizedResult();
+                    return;
+                }
+
+                var jwtTokenService = Net.Web.Api.Sdk.Injection.Containers.WindsorContainer.Instance.Resolve<IJwtTokenService>();
+                var validationResult = jwtTokenService.ValidateToken(token, new JwtTokenValidationRequest
+                {
+                    Issuers = Issuers?.Split(','),
+                    IntendedAudiences = IntendedAudiences?.Split(','),
+                    ValidateExpiration = ValidateExpiration,
+                    TokenValidatingName = TokenValidatingName
+                });
+
+                if (!validationResult.IsValid)
+                {
+                    context.Result = new UnauthorizedResult();
+                    return;
+                }
+
+                // Set the user principal
+                var handler = new JwtSecurityTokenHandler();
+                var jsonToken = handler.ReadJwtToken(token);
+                var identity = new ClaimsIdentity(jsonToken.Claims, "jwt");
+                context.HttpContext.User = new ClaimsPrincipal(identity);
+            }
+            catch (Exception)
+            {
+                context.Result = new UnauthorizedResult();
+            }
+        }
 
         #endregion
 
-        #region AuthorizeAttribute Overrides
+        #region Private Methods
 
         /// <summary>
-        /// Called when [authorization asynchronous].
+        /// Extracts the token from the request.
         /// </summary>
-        /// <param name="actionContext">The action context.</param>
-        /// <param name="cancellationToken">The cancellation token.</param>
-        /// <returns>Task.</returns>
-        public override Task OnAuthorizationAsync(HttpActionContext actionContext, CancellationToken cancellationToken)
+        /// <param name="request">The request.</param>
+        /// <returns>System.String.</returns>
+        private static string ExtractTokenFromRequest(Microsoft.AspNetCore.Http.HttpRequest request)
         {
-            var identity = actionContext.RequestContext.Principal.Identity;
-
-            if (identity == null || !identity.IsAuthenticated)
+            var authHeader = request.Headers["Authorization"].FirstOrDefault();
+            
+            if (!string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer "))
             {
-                actionContext.Response = actionContext.Request.CreateResponse(HttpStatusCode.Forbidden, TokenStatus.TokenRequired);
-
-                return Task.FromResult<object>(null);
+                return authHeader.Substring("Bearer ".Length).Trim();
             }
 
-            var token = actionContext.GetToken();
-
-            if (string.IsNullOrEmpty(token))
+            // Check query string
+            if (request.Query.ContainsKey("access_token"))
             {
-                actionContext.Response = actionContext.Request.CreateResponse(HttpStatusCode.Unauthorized, TokenStatus.TokenRequired);
-
-                return Task.FromResult<object>(null);
+                return request.Query["access_token"];
             }
 
-            var claims = ((ClaimsIdentity)identity).Claims.ToList();
-
-            if (string.IsNullOrEmpty(TokenValidatingName))
-            {
-                TokenValidatingName = claims.GetClaimByName(TokenInternalClaimNames.tn.ToString())?.Value;
-            }
-
-            if (string.IsNullOrEmpty(TokenValidatingName))
-            {
-                actionContext.Response = actionContext.Request.CreateResponse(HttpStatusCode.Unauthorized, TokenStatus.Invalid);
-
-                return Task.FromResult<object>(null);
-            }
-
-            var service = InjectionContainer.Instance.GetService<IJwtTokenService>();
-            var tokenDefinition = service.Tokens.ContainsKey(TokenValidatingName) ? service.Tokens[TokenValidatingName] : null;
-
-            if (tokenDefinition == null)
-            {
-                actionContext.Response = actionContext.Request.CreateResponse(HttpStatusCode.Unauthorized, TokenStatus.Invalid);
-
-                return Task.FromResult<object>(null);
-            }
-
-            try
-            {
-                var validationParameters = service.GetTokenValidationParameters(ValidateExpiration, Issuers, IntendedAudiences);
-                var tokenHandler = new JwtSecurityTokenHandler();
-
-                tokenHandler.ValidateToken(token, validationParameters, out _);
-
-                var isRevoked = service.IsTokenRevoked(token, claims);
-
-                if(isRevoked)
-                {
-                    actionContext.Response = actionContext.Request.CreateResponse(HttpStatusCode.Unauthorized, TokenStatus.Revoked);
-
-                    return Task.FromResult<object>(null);
-                }
-
-                if (claims.IsTokenOneTimeUse())
-                {
-                    var isUsed = service.IsTokenUsed(token, claims);
-
-                    if (isUsed)
-                    {
-                        actionContext.Response = actionContext.Request.CreateResponse(HttpStatusCode.Unauthorized, TokenStatus.AlreadyUsed);
-
-                        return Task.FromResult<object>(null);
-                    }
-
-                    service.MarkTokenAsUsed(token, claims);
-                }
-
-                return Task.FromResult<object>(null);
-            }
-            catch(SecurityTokenExpiredException)
-            {
-                actionContext.Response = actionContext.Request.CreateResponse(HttpStatusCode.Unauthorized, TokenStatus.Expired);
-
-                return Task.FromResult<object>(null);
-            }
-            catch (SecurityTokenInvalidAudienceException)
-            {
-                actionContext.Response = actionContext.Request.CreateResponse(HttpStatusCode.Unauthorized, TokenStatus.InvalidAudience);
-
-                return Task.FromResult<object>(null);
-            }
-            catch (Exception ex)
-            {
-                var isTechnicalError = !(ex.Message.StartsWith("IDX") && ex.Message.Contains(":"));
-
-                actionContext.Response = isTechnicalError 
-                    ? actionContext.Request.CreateResponse(HttpStatusCode.InternalServerError, ex)
-                    : actionContext.Request.CreateResponse(HttpStatusCode.Unauthorized, TokenStatus.Invalid);
-
-                return Task.FromResult<object>(null);
-            }
+            return null;
         }
 
         #endregion

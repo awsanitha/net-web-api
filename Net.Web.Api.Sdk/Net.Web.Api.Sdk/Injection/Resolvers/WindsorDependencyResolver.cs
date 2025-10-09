@@ -1,18 +1,16 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Web.Http.Dependencies;
 using Castle.Windsor;
-using Net.Web.Api.Sdk.Injection.Scopes;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Net.Web.Api.Sdk.Injection.Resolvers
 {
-    /// <inheritdoc />
     /// <summary>
     /// Class WindsorDependencyResolver.
+    /// Provides service resolution using Castle Windsor for ASP.NET Core
     /// </summary>
-    /// <seealso cref="T:System.Web.Http.Dependencies.IDependencyResolver" />
-    public class WindsorDependencyResolver : IDependencyResolver
+    public class WindsorDependencyResolver : IServiceProvider
     {
         #region Private Properties
 
@@ -33,47 +31,64 @@ namespace Net.Web.Api.Sdk.Injection.Resolvers
 
         #endregion
 
-        #region IDependencyResolver Implementations
+        #region IServiceProvider Implementations
 
         /// <inheritdoc />
         /// <summary>
-        /// Starts a resolution scope.
-        /// </summary>
-        /// <returns>The dependency scope.</returns>
-        public IDependencyScope BeginScope()
-        {
-            return new WindsorDependencyScope(_container);
-        }
-
-        /// <inheritdoc />
-        /// <summary>
-        /// Retrieves a service from the scope.
+        /// Retrieves a service from the container.
         /// </summary>
         /// <param name="serviceType">The service to be retrieved.</param>
         /// <returns>The retrieved service.</returns>
         public object GetService(Type serviceType)
         {
-            return _container.Kernel.HasComponent(serviceType) ? _container.Resolve(serviceType) : null;
+            try
+            {
+                return _container.Kernel.HasComponent(serviceType) ? _container.Resolve(serviceType) : null;
+            }
+            catch
+            {
+                return null;
+            }
         }
 
-        /// <inheritdoc />
+        #endregion
+
+        #region Public Methods
+
         /// <summary>
-        /// Retrieves a collection of services from the scope.
+        /// Retrieves a collection of services from the container.
         /// </summary>
         /// <param name="serviceType">The collection of services to be retrieved.</param>
         /// <returns>The retrieved collection of services.</returns>
         public IEnumerable<object> GetServices(Type serviceType)
         {
-            return !_container.Kernel.HasComponent(serviceType) ? new object[0] : _container.ResolveAll(serviceType).Cast<object>();
+            try
+            {
+                return !_container.Kernel.HasComponent(serviceType) ? new object[0] : _container.ResolveAll(serviceType).Cast<object>();
+            }
+            catch
+            {
+                return new object[0];
+            }
         }
 
-        /// <inheritdoc />
         /// <summary>
-        /// Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
+        /// Resolves a service of the specified type.
         /// </summary>
-        public void Dispose()
+        /// <typeparam name="T">The service type.</typeparam>
+        /// <returns>The resolved service.</returns>
+        public T GetService<T>()
         {
-            _container.Dispose();
+            return (T)GetService(typeof(T));
+        }
+
+        /// <summary>
+        /// Releases a service instance.
+        /// </summary>
+        /// <param name="instance">The instance to release.</param>
+        public void Release(object instance)
+        {
+            _container.Release(instance);
         }
 
         #endregion

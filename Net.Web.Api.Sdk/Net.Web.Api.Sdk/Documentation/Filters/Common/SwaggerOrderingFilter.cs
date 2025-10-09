@@ -1,8 +1,9 @@
-﻿using Net.Web.Api.Sdk.Documentation.Attributes;
-using Swashbuckle.Swagger;
+using Net.Web.Api.Sdk.Documentation.Attributes;
+using Microsoft.OpenApi.Models;
+using Swashbuckle.AspNetCore.SwaggerGen;
 using System.Collections.Generic;
 using System.Linq;
-using System.Web.Http.Description;
+using Microsoft.AspNetCore.Mvc.ApiExplorer;
 
 namespace Net.Web.Api.Sdk.Documentation.Filters.Common
 {
@@ -19,11 +20,10 @@ namespace Net.Web.Api.Sdk.Documentation.Filters.Common
         /// Applies the specified swagger document.
         /// </summary>
         /// <param name="swaggerDoc">The swagger document.</param>
-        /// <param name="schemaRegistry">The schema registry.</param>
-        /// <param name="apiExplorer">The API explorer.</param>
-        public virtual void Apply(SwaggerDocument swaggerDoc, SchemaRegistry schemaRegistry, IApiExplorer apiExplorer)
+        /// <param name="context">The context.</param>
+        public virtual void Apply(OpenApiDocument swaggerDoc, DocumentFilterContext context)
         {
-            OrderingApply(swaggerDoc, schemaRegistry, apiExplorer);
+            OrderingApply(swaggerDoc, context);
         }
 
         #endregion
@@ -36,71 +36,70 @@ namespace Net.Web.Api.Sdk.Documentation.Filters.Common
         /// <param name="item">The item.</param>
         /// <param name="tag">The tag.</param>
         /// <returns>System.String.</returns>
-        internal static string GetInvokeMethod(PathItem item, out string tag)
+        internal static string GetInvokeMethod(OpenApiPathItem item, out string tag)
         {
             tag = string.Empty;
 
-            if (item.get != null)
+            if (item.Operations.ContainsKey(OperationType.Get))
             {
-                tag = item.get.tags != null && item.get.tags.Count == 1 ? item.get.tags[0] : string.Empty;
-
+                var operation = item.Operations[OperationType.Get];
+                tag = operation.Tags != null && operation.Tags.Count == 1 ? operation.Tags[0].Name : string.Empty;
                 return "GET";
             }
 
-            if (item.put != null)
+            if (item.Operations.ContainsKey(OperationType.Put))
             {
-                tag = item.put.tags != null && item.put.tags.Count == 1 ? item.put.tags[0] : string.Empty;
-
+                var operation = item.Operations[OperationType.Put];
+                tag = operation.Tags != null && operation.Tags.Count == 1 ? operation.Tags[0].Name : string.Empty;
                 return "PUT";
             }
 
-            if (item.post != null)
+            if (item.Operations.ContainsKey(OperationType.Post))
             {
-                tag = item.post.tags != null && item.post.tags.Count == 1 ? item.post.tags[0] : string.Empty;
-
+                var operation = item.Operations[OperationType.Post];
+                tag = operation.Tags != null && operation.Tags.Count == 1 ? operation.Tags[0].Name : string.Empty;
                 return "POST";
             }
 
-            if (item.delete != null)
+            if (item.Operations.ContainsKey(OperationType.Delete))
             {
-                tag = item.delete.tags != null && item.delete.tags.Count == 1 ? item.delete.tags[0] : string.Empty;
-
+                var operation = item.Operations[OperationType.Delete];
+                tag = operation.Tags != null && operation.Tags.Count == 1 ? operation.Tags[0].Name : string.Empty;
                 return "DELETE";
             }
 
-            if (item.options != null)
+            if (item.Operations.ContainsKey(OperationType.Options))
             {
-                tag = item.options.tags != null && item.options.tags.Count == 1 ? item.options.tags[0] : string.Empty;
-
+                var operation = item.Operations[OperationType.Options];
+                tag = operation.Tags != null && operation.Tags.Count == 1 ? operation.Tags[0].Name : string.Empty;
                 return "OPTIONS";
             }
 
-            if (item.head != null)
+            if (item.Operations.ContainsKey(OperationType.Head))
             {
-                tag = item.head.tags != null && item.head.tags.Count == 1 ? item.head.tags[0] : string.Empty;
-
+                var operation = item.Operations[OperationType.Head];
+                tag = operation.Tags != null && operation.Tags.Count == 1 ? operation.Tags[0].Name : string.Empty;
                 return "HEAD";
             }
 
-            if (item.patch == null)
+            if (item.Operations.ContainsKey(OperationType.Patch))
             {
-                return string.Empty;
+                var operation = item.Operations[OperationType.Patch];
+                tag = operation.Tags != null && operation.Tags.Count == 1 ? operation.Tags[0].Name : string.Empty;
+                return "PATCH";
             }
 
-            tag = item.patch.tags != null && item.patch.tags.Count == 1 ? item.patch.tags[0] : string.Empty;
-
-            return "PATCH";
+            return string.Empty;
         }
 
         /// <summary>
         /// Orderings the apply.
         /// </summary>
         /// <param name="swaggerDoc">The swagger document.</param>
-        /// <param name="schemaRegistry">The schema registry.</param>
-        /// <param name="apiExplorer">The API explorer.</param>
-        internal static void OrderingApply(SwaggerDocument swaggerDoc, SchemaRegistry schemaRegistry, IApiExplorer apiExplorer)
+        /// <param name="context">The context.</param>
+        internal static void OrderingApply(OpenApiDocument swaggerDoc, DocumentFilterContext context)
         {
-            var paths = swaggerDoc.paths;
+            var paths = swaggerDoc.Paths;
 
             if (paths == null || !paths.Any())
             {
@@ -113,7 +112,7 @@ namespace Net.Web.Api.Sdk.Documentation.Filters.Common
             {
                 var key = GetInvokeMethod(path.Value, out var tag);
                 var apiKey = $"{key}{path.Key.TrimStart('/')}";
-                var apiFound = apiExplorer.ApiDescriptions.FirstOrDefault(c => c.ID.StartsWith(apiKey));
+                var apiFound = context.ApiDescriptions.FirstOrDefault(c => c.RelativePath?.StartsWith(apiKey.TrimStart('/')) == true);
 
                 if (!tagGroups.ContainsKey(tag))
                 {
@@ -139,7 +138,11 @@ namespace Net.Web.Api.Sdk.Documentation.Filters.Common
                 list.AddRange(tagGroup.Value);
             }
 
-            swaggerDoc.paths = list.OrderBy(c => c.OperationName).ToDictionary(c => c.PathKey, c => c.PathValue);
+            swaggerDoc.Paths.Clear();
+            foreach (var path in list.OrderBy(c => c.OperationName))
+            {
+                swaggerDoc.Paths.Add(path.PathKey, path.PathValue);
+            }
         }
 
         /// <summary>
@@ -149,36 +152,28 @@ namespace Net.Web.Api.Sdk.Documentation.Filters.Common
         /// <returns>System.Int32.</returns>
         internal static int GetApiOrder(ApiDescription apiDescription)
         {
-            var apiDescriptor = apiDescription.ActionDescriptor;
-            var controllerDescriptor = apiDescriptor?.ControllerDescriptor;
-
-            if (controllerDescriptor == null)
+            if (apiDescription?.ActionDescriptor == null)
             {
                 return -1;
             }
 
-            var controllerType = controllerDescriptor.ControllerType;
-
-            if (controllerType == null)
-            {
-                return -1;
-            }
-
-            var actionName = apiDescriptor.ActionName;
+            var actionDescriptor = apiDescription.ActionDescriptor;
+            var actionName = actionDescriptor.DisplayName;
 
             if (string.IsNullOrEmpty(actionName))
             {
                 return -1;
             }
 
-            var actionMethod = controllerType.GetMethod(actionName);
+            // For ASP.NET Core, we need to get the method info differently
+            var methodInfo = actionDescriptor.GetType().GetProperty("MethodInfo")?.GetValue(actionDescriptor) as System.Reflection.MethodInfo;
 
-            if (actionMethod == null)
+            if (methodInfo == null)
             {
                 return -1;
             }
 
-            var attr = actionMethod.GetCustomAttributes(typeof(SwaggerMethodOrderAttribute), false).FirstOrDefault();
+            var attr = methodInfo.GetCustomAttributes(typeof(SwaggerMethodOrderAttribute), false).FirstOrDefault();
 
             if (attr == null)
             {
@@ -215,7 +210,7 @@ namespace Net.Web.Api.Sdk.Documentation.Filters.Common
             /// Gets or sets the path value.
             /// </summary>
             /// <value>The path value.</value>
-            internal PathItem PathValue { get; set; }
+            internal OpenApiPathItem PathValue { get; set; }
 
             /// <summary>
             /// Gets or sets the name of the operation.

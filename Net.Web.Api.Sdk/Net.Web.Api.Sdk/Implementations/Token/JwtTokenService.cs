@@ -7,8 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Claims;
 using System.Text;
-using System.Web;
-using System.Web.Http.Controllers;
+using Microsoft.AspNetCore.Http;
 using LiteDB;
 using Microsoft.IdentityModel.Tokens;
 using Net.Web.Api.Sdk.Configurations.Token;
@@ -124,6 +123,45 @@ namespace Net.Web.Api.Sdk.Implementations.Token
 
         /// <inheritdoc />
         /// <summary>
+        /// Validates the token.
+        /// </summary>
+        /// <param name="token">The token to validate.</param>
+        /// <param name="validationRequest">The validation request parameters.</param>
+        /// <returns>JwtTokenValidationResult.</returns>
+        public virtual JwtTokenValidationResult ValidateToken(string token, JwtTokenValidationRequest validationRequest)
+        {
+            try
+            {
+                var tokenHandler = new JwtSecurityTokenHandler();
+                
+                var validationParameters = GetTokenValidationParameters(
+                    validationRequest.ValidateExpiration,
+                    validationRequest.Issuers != null ? string.Join(",", validationRequest.Issuers) : null,
+                    validationRequest.IntendedAudiences != null ? string.Join(",", validationRequest.IntendedAudiences) : null
+                );
+
+                var principal = tokenHandler.ValidateToken(token, validationParameters, out var validatedToken);
+
+                return new JwtTokenValidationResult
+                {
+                    IsValid = true,
+                    Claims = principal.Claims,
+                    Token = token
+                };
+            }
+            catch (Exception ex)
+            {
+                return new JwtTokenValidationResult
+                {
+                    IsValid = false,
+                    ErrorMessage = ex.Message,
+                    Token = token
+                };
+            }
+        }
+
+        /// <inheritdoc />
+        /// <summary>
         /// Gets the token validation parameters.
         /// </summary>
         /// <param name="validateExipration">if set to <c>true</c> [validate exipration].</param>
@@ -170,16 +208,16 @@ namespace Net.Web.Api.Sdk.Implementations.Token
         /// </summary>
         /// <param name="context">The context.</param>
         /// <returns>Dictionary&lt;System.String, System.String&gt;.</returns>
-        public virtual Dictionary<string, string> GetTokenPayload(HttpActionContext context)
+        public virtual Dictionary<string, string> GetTokenPayload(HttpContext context)
         {
-            var identity = context.RequestContext.Principal.Identity;
+            var identity = context.User?.Identity;
 
             if (identity == null || !identity.IsAuthenticated)
             {
                 return new Dictionary<string, string>();
             }
 
-            context.GetToken(out var securityToken);
+            context.Request.GetToken(out var securityToken);
 
             return securityToken?.Claims?.ToClaimDictionary() ?? new Dictionary<string, string>();
         }
@@ -190,9 +228,9 @@ namespace Net.Web.Api.Sdk.Implementations.Token
         /// </summary>
         /// <param name="context">The context.</param>
         /// <returns>Dictionary&lt;System.String, System.String&gt;.</returns>
-        public virtual Dictionary<string, string> GetIdentityPayload(HttpActionContext context)
+        public virtual Dictionary<string, string> GetIdentityPayload(HttpContext context)
         {
-            var principal = context.RequestContext.Principal;
+            var principal = context.User;
             var identity = principal?.Identity;
 
             if (identity == null || !identity.IsAuthenticated)
@@ -300,7 +338,7 @@ namespace Net.Web.Api.Sdk.Implementations.Token
                 var tokens = db.GetCollection<JwtTokenUsedOrRevoked>(TOKEN_DATA_COLLECTION);
                 var now = DateTime.UtcNow;
 
-                count = tokens.Delete(c => c.ExpirationDate.CompareTo(now) > 0);
+                count = tokens.DeleteMany(c => c.ExpirationDate.CompareTo(now) > 0);
             }
 
             return count;
@@ -495,7 +533,7 @@ namespace Net.Web.Api.Sdk.Implementations.Token
         {
             Tokens = new Dictionary<string, JwtTokenModel>();
 
-            var rootPath = HttpContext.Current.Server.MapPath(ROOT_PATH);
+            var rootPath = AppDomain.CurrentDomain.BaseDirectory;
             var configurationFileList = Directory.GetFiles(rootPath, TOKEN_CONFIG_FILE_PATTERN, SearchOption.AllDirectories);
 
             if (!configurationFileList.Any())
@@ -529,7 +567,7 @@ namespace Net.Web.Api.Sdk.Implementations.Token
         /// </summary>
         private void SetupTokenDatabase()
         {
-            var rootPath = HttpContext.Current.Server.MapPath(ROOT_PATH);
+            var rootPath = AppDomain.CurrentDomain.BaseDirectory;
             var dataBasePath = Path.Combine(rootPath, "db");
 
             if(!Directory.Exists(dataBasePath))

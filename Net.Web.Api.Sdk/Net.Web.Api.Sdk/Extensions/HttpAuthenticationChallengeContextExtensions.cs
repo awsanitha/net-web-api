@@ -1,7 +1,8 @@
-﻿using Net.Web.Api.Sdk.Common.Http;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Net.Web.Api.Sdk.Common.Http;
 using System;
 using System.Net.Http.Headers;
-using System.Web.Http.Filters;
 
 namespace Net.Web.Api.Sdk.Extensions
 {
@@ -15,38 +16,38 @@ namespace Net.Web.Api.Sdk.Extensions
         /// <summary>
         /// Challenges the with.
         /// </summary>
-        /// <param name="context">The context.</param>
+        /// <param name="response">The HTTP response.</param>
         /// <param name="scheme">The scheme.</param>
-        public static void ChallengeWith(this HttpAuthenticationChallengeContext context, string scheme)
+        public static void ChallengeWith(this HttpResponse response, string scheme)
         {
-            ChallengeWith(context, new AuthenticationHeaderValue(scheme));
+            ChallengeWith(response, new AuthenticationHeaderValue(scheme));
         }
 
         /// <summary>
         /// Challenges the with.
         /// </summary>
-        /// <param name="context">The context.</param>
+        /// <param name="response">The HTTP response.</param>
         /// <param name="scheme">The scheme.</param>
         /// <param name="parameter">The parameter.</param>
-        public static void ChallengeWith(this HttpAuthenticationChallengeContext context, string scheme, string parameter)
+        public static void ChallengeWith(this HttpResponse response, string scheme, string parameter)
         {
-            ChallengeWith(context, new AuthenticationHeaderValue(scheme, parameter));
+            ChallengeWith(response, new AuthenticationHeaderValue(scheme, parameter));
         }
 
         /// <summary>
         /// Challenges the with.
         /// </summary>
-        /// <param name="context">The context.</param>
+        /// <param name="response">The HTTP response.</param>
         /// <param name="challenge">The challenge.</param>
-        /// <exception cref="ArgumentNullException">context</exception>
-        public static void ChallengeWith(this HttpAuthenticationChallengeContext context, AuthenticationHeaderValue challenge)
+        /// <exception cref="ArgumentNullException">response</exception>
+        public static void ChallengeWith(this HttpResponse response, AuthenticationHeaderValue challenge)
         {
-            if (context == null)
+            if (response == null)
             {
-                throw new ArgumentNullException(nameof(context));
+                throw new ArgumentNullException(nameof(response));
             }
 
-            context.Result = new ChallengeOnUnauthorizedResult(challenge, context.Result);
+            response.Headers["WWW-Authenticate"] = challenge.ToString();
         }
 
         #endregion

@@ -1,19 +1,17 @@
-﻿using System.Linq;
+using Microsoft.AspNetCore.Mvc;
+using System.Linq;
 using System.Net;
-using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Threading;
 using System.Threading.Tasks;
-using System.Web.Http;
 
 namespace Net.Web.Api.Sdk.Common.Http
 {
     /// <summary>
     /// Class AddChallengeOnUnauthorizedResult.
-    /// Implements the <see cref="IHttpActionResult" />
+    /// Implements the <see cref="ActionResult" />
     /// </summary>
-    /// <seealso cref="IHttpActionResult" />
-    public class ChallengeOnUnauthorizedResult : IHttpActionResult
+    /// <seealso cref="ActionResult" />
+    public class ChallengeOnUnauthorizedResult : ActionResult
     {
         #region Properties
 
@@ -27,33 +25,35 @@ namespace Net.Web.Api.Sdk.Common.Http
         /// Gets the inner result.
         /// </summary>
         /// <value>The inner result.</value>
-        public IHttpActionResult InnerResult { get; }
+        public ActionResult InnerResult { get; }
 
         #endregion
 
-        #region IHttpActionResult Implementations
+        #region ActionResult Implementations
 
         /// <inheritdoc />
         /// <summary>
-        /// execute as an asynchronous operation.
+        /// Executes the result operation of the action method asynchronously.
         /// </summary>
-        /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
-        /// <returns>A task that, when completed, contains the <see cref="T:System.Net.Http.HttpResponseMessage" />.</returns>
-        public async Task<HttpResponseMessage> ExecuteAsync(CancellationToken cancellationToken)
+        /// <param name="context">The context in which the result is executed.</param>
+        /// <returns>A task that represents the asynchronous execute operation.</returns>
+        public override async Task ExecuteResultAsync(ActionContext context)
         {
-            var response = await InnerResult.ExecuteAsync(cancellationToken);
+            await InnerResult.ExecuteResultAsync(context);
 
-            if (response.StatusCode != HttpStatusCode.Unauthorized)
+            var response = context.HttpContext.Response;
+
+            if (response.StatusCode != (int)HttpStatusCode.Unauthorized)
             {
-                return response;
+                return;
             }
 
-            if (response.Headers.WwwAuthenticate.All(h => h.Scheme != Challenge.Scheme))
+            var existingHeaders = response.Headers.Where(h => h.Key == "WWW-Authenticate").SelectMany(h => h.Value);
+            
+            if (existingHeaders.All(h => !h.StartsWith(Challenge.Scheme)))
             {
-                response.Headers.WwwAuthenticate.Add(Challenge);
+                response.Headers["WWW-Authenticate"] = Challenge.ToString();
             }
-
-            return response;
         }
 
         #endregion
@@ -65,7 +65,7 @@ namespace Net.Web.Api.Sdk.Common.Http
         /// </summary>
         /// <param name="challenge">The challenge.</param>
         /// <param name="innerResult">The inner result.</param>
-        public ChallengeOnUnauthorizedResult(AuthenticationHeaderValue challenge, IHttpActionResult innerResult)
+        public ChallengeOnUnauthorizedResult(AuthenticationHeaderValue challenge, ActionResult innerResult)
         {
             Challenge = challenge;
             InnerResult = innerResult;
