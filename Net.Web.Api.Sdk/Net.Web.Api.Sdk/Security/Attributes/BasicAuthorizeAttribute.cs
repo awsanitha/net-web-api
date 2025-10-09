@@ -1,27 +1,22 @@
-﻿using Net.Web.Api.Sdk.Common.Http;
-using Net.Web.Api.Sdk.Extensions;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Serialization;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
 using System;
-using System.Collections.Generic;
-using System.Net;
-using System.Net.Http.Formatting;
+using System.Security.Claims;
 using System.Security.Principal;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
-using System.Web.Http.Filters;
 
 namespace Net.Web.Api.Sdk.Security.Attributes
 {
     /// <summary>
     /// Class BasicAuthorizeAttribute.
     /// Implements the <see cref="Attribute" />
-    /// Implements the <see cref="IAuthenticationFilter" />
+    /// Implements the <see cref="IAuthorizationFilter" />
     /// </summary>
     /// <seealso cref="Attribute" />
-    /// <seealso cref="IAuthenticationFilter" />
-    public abstract class BasicAuthorizeAttribute : Attribute, IAuthenticationFilter
+    /// <seealso cref="IAuthorizationFilter" />
+    public abstract class BasicAuthorizeAttribute : Attribute, IAuthorizationFilter
     {
         #region Internal Constants
 
@@ -53,188 +48,103 @@ namespace Net.Web.Api.Sdk.Security.Attributes
 
         #endregion
 
-        #region Private Properties
+        #region IAuthorizationFilter Implementation
 
         /// <summary>
-        /// The default formatter
+        /// Called early in the filter pipeline to confirm request is authorized.
         /// </summary>
-        private static readonly JsonMediaTypeFormatter _defaultFormatter = new JsonMediaTypeFormatter
+        /// <param name="context">The authorization filter context.</param>
+        public void OnAuthorization(AuthorizationFilterContext context)
         {
-            SerializerSettings =
+            var request = context.HttpContext.Request;
+            var authHeader = request.Headers["Authorization"].ToString();
+
+            if (string.IsNullOrEmpty(authHeader) || !authHeader.StartsWith(AUTHORIZATION_BASIC))
             {
-                DateFormatHandling = DateFormatHandling.MicrosoftDateFormat,
-                DateTimeZoneHandling = DateTimeZoneHandling.Local,
-                ContractResolver = new CamelCasePropertyNamesContractResolver()
-            }
-        };
-
-        #endregion
-
-        #region Abscrtact Methods
-
-        /// <summary>
-        /// Authenticates the asynchronous.
-        /// </summary>
-        /// <param name="userName">Name of the user.</param>
-        /// <param name="password">The password.</param>
-        /// <param name="cancellationToken">The cancellation token.</param>
-        /// <param name="authenticationResult">The authentication result.</param>
-        /// <returns>Task&lt;IPrincipal&gt;.</returns>
-        protected abstract Task<IPrincipal> AuthenticateAsync(string userName, string password, CancellationToken cancellationToken, IList<string> authenticationResult);
-
-        #endregion
-
-        #region Attribute Overrides
-
-        /// <inheritdoc />
-        /// <summary>
-        /// Gets or sets a value indicating whether more than one instance of the indicated attribute can be specified for a single program element.
-        /// </summary>
-        /// <value><c>true</c> if [allow multiple]; otherwise, <c>false</c>.</value>
-        public virtual bool AllowMultiple => false;
-
-        #endregion
-
-        #region IAuthenticationFilter Implementations
-
-        /// <summary>
-        /// authenticate as an asynchronous operation.
-        /// </summary>
-        /// <param name="context">The authentication context.</param>
-        /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
-        /// <returns>A Task that will perform authentication.</returns>
-        public async Task AuthenticateAsync(HttpAuthenticationContext context, CancellationToken cancellationToken)
-        {
-            var request = context.Request;
-            var authorization = request.Headers.Authorization;
-
-            if (authorization == null)
-            {
-                context.ErrorResult = new ResponseActionResult(request, HttpStatusCode.Forbidden);
-
+                context.Result = new UnauthorizedResult();
                 return;
             }
 
-            if (!AUTHORIZATION_BASIC.Equals(authorization.Scheme))
+            var credentials = ExtractCredentials(authHeader);
+            if (credentials == null)
             {
-                context.ErrorResult = new ResponseActionResult(request, HttpStatusCode.Forbidden);
-
+                context.Result = new UnauthorizedResult();
                 return;
             }
 
-            if (string.IsNullOrEmpty(authorization.Parameter))
-            {
-                context.ErrorResult = new ResponseActionResult(request, HttpStatusCode.Unauthorized);
-
-                return;
-            }
-
-            var userNameAndPasword = ExtractUserNameAndPassword(authorization.Parameter);
-
-            if (userNameAndPasword == null)
-            {
-                context.ErrorResult = new ResponseActionResult(request, HttpStatusCode.Unauthorized);
-
-                return;
-            }
-
-            var authenticationResult = new List<string>();
-            var userName = userNameAndPasword.Item1;
-            var password = userNameAndPasword.Item2;
-            var principal = await AuthenticateAsync(userName, password, cancellationToken, authenticationResult);
-
+            var principal = AuthenticateUser(credentials.Username, credentials.Password);
             if (principal == null)
             {
-                context.ErrorResult = new ResponseActionResult(request, HttpStatusCode.Unauthorized, authenticationResult);
+                context.Result = new UnauthorizedResult();
+                return;
             }
-            else
-            {
-                context.Principal = principal;
-            }
+
+            context.HttpContext.User = principal as ClaimsPrincipal ?? new ClaimsPrincipal(principal);
         }
+
+        #endregion
+
+        #region Protected Abstract Methods
 
         /// <summary>
-        /// Challenges the asynchronous.
+        /// Authenticates the user.
         /// </summary>
-        /// <param name="context">The context.</param>
-        /// <param name="cancellationToken">The cancellation token.</param>
-        /// <returns>Task.</returns>
-        public Task ChallengeAsync(HttpAuthenticationChallengeContext context, CancellationToken cancellationToken)
-        {
-            if (EnableChallenge)
-            {
-                Challenge(context);
-            }
-
-            return Task.FromResult(0);
-        }
+        /// <param name="username">The username.</param>
+        /// <param name="password">The password.</param>
+        /// <returns>IPrincipal.</returns>
+        protected abstract IPrincipal AuthenticateUser(string username, string password);
 
         #endregion
 
         #region Private Methods
 
         /// <summary>
-        /// Extracts the user name and password.
+        /// Extracts the credentials from the authorization header.
         /// </summary>
-        /// <param name="authorizationParameter">The authorization parameter.</param>
-        /// <returns>TupleModel&lt;System.String, System.String&gt;.</returns>
-        private static Tuple<string, string> ExtractUserNameAndPassword(string authorizationParameter)
+        /// <param name="authHeader">The authorization header.</param>
+        /// <returns>BasicCredentials.</returns>
+        private static BasicCredentials ExtractCredentials(string authHeader)
         {
-            byte[] credentialBytes;
-
             try
             {
-                credentialBytes = Convert.FromBase64String(authorizationParameter);
+                var encodedCredentials = authHeader.Substring(AUTHORIZATION_BASIC.Length).Trim();
+                var credentialBytes = Convert.FromBase64String(encodedCredentials);
+                var credentials = Encoding.UTF8.GetString(credentialBytes);
+                var parts = credentials.Split(':');
+
+                if (parts.Length == 2)
+                {
+                    return new BasicCredentials { Username = parts[0], Password = parts[1] };
+                }
             }
-            catch (FormatException)
+            catch
             {
-                return null;
+                // Invalid credentials format
             }
 
-            var encoding = Encoding.ASCII;
-
-            encoding = (Encoding)encoding.Clone();
-
-            encoding.DecoderFallback = DecoderFallback.ExceptionFallback;
-
-            string decodedCredentials;
-
-            try
-            {
-                decodedCredentials = encoding.GetString(credentialBytes);
-            }
-            catch (DecoderFallbackException)
-            {
-                return null;
-            }
-
-            if (string.IsNullOrEmpty(decodedCredentials))
-            {
-                return null;
-            }
-
-            var colonIndex = decodedCredentials.IndexOf(':');
-
-            if (colonIndex == -1)
-            {
-                return null;
-            }
-
-            var userName = decodedCredentials.Substring(0, colonIndex);
-            var password = decodedCredentials.Substring(colonIndex + 1);
-
-            return new Tuple<string, string>(userName, password);
+            return null;
         }
 
-        /// <summary>
-        /// Challenges the specified context.
-        /// </summary>
-        /// <param name="context">The context.</param>
-        private void Challenge(HttpAuthenticationChallengeContext context)
-        {
-            var parameter = string.IsNullOrEmpty(Realm) ? null : $@"{REALM}="" + Realm + @""";
+        #endregion
 
-            context.ChallengeWith(AUTHORIZATION_BASIC, parameter);
+        #region Private Classes
+
+        /// <summary>
+        /// Class BasicCredentials.
+        /// </summary>
+        private class BasicCredentials
+        {
+            /// <summary>
+            /// Gets or sets the username.
+            /// </summary>
+            /// <value>The username.</value>
+            public string Username { get; set; }
+
+            /// <summary>
+            /// Gets or sets the password.
+            /// </summary>
+            /// <value>The password.</value>
+            public string Password { get; set; }
         }
 
         #endregion

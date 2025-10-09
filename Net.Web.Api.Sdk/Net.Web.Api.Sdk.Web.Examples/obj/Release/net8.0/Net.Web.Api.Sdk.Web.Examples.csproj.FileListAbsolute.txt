@@ -1,0 +1,10 @@
+/data/code/Net.Web.Api.Sdk/Net.Web.Api.Sdk.Web.Examples/obj/Release/net8.0/Net.Web.Api.Sdk.Web.Examples.csproj.AssemblyReference.cache
+/data/code/Net.Web.Api.Sdk/Net.Web.Api.Sdk.Web.Examples/obj/Release/net8.0/Net.Web.Api.Sdk.Web.Examples.Properties.Resources.resources
+/data/code/Net.Web.Api.Sdk/Net.Web.Api.Sdk.Web.Examples/obj/Release/net8.0/Net.Web.Api.Sdk.Web.Examples.csproj.GenerateResource.cache
+/data/code/Net.Web.Api.Sdk/Net.Web.Api.Sdk.Web.Examples/obj/Release/net8.0/Net.Web.Api.Sdk.Web.Examples.GeneratedMSBuildEditorConfig.editorconfig
+/data/code/Net.Web.Api.Sdk/Net.Web.Api.Sdk.Web.Examples/obj/Release/net8.0/Net.Web.Api.Sdk.Web.Examples.csproj.CoreCompileInputs.cache
+/data/code/Net.Web.Api.Sdk/Net.Web.Api.Sdk.Web.Examples/obj/Release/net8.0/Net.Web.Api.Sdk.Web.Examples.MvcApplicationPartsAssemblyInfo.cs
+/data/code/Net.Web.Api.Sdk/Net.Web.Api.Sdk.Web.Examples/obj/Release/net8.0/Net.Web.Api.Sdk.Web.Examples.MvcApplicationPartsAssemblyInfo.cache
+/data/code/Net.Web.Api.Sdk/Net.Web.Api.Sdk.Web.Examples/obj/Release/net8.0/Net.Web.Api.Sdk.Web.Examples.RazorAssemblyInfo.cache
+/data/code/Net.Web.Api.Sdk/Net.Web.Api.Sdk.Web.Examples/obj/Release/net8.0/Net.Web.Api.Sdk.Web.Examples.RazorAssemblyInfo.cs
+/data/code/Net.Web.Api.Sdk/Net.Web.Api.Sdk.Web.Examples/obj/Release/net8.0/Net.Web.Api.Sdk.Web.Examples.sourcelink.json

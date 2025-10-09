@@ -1,14 +1,13 @@
-﻿using Net.Web.Api.Sdk.Interfaces.Information;
+using Net.Web.Api.Sdk.Interfaces.Information;
 using Net.Web.Api.Sdk.Interfaces.Token;
 using Net.Web.Api.Sdk.Properties;
-using NuGet;
 using System;
 using System.Collections.Generic;
 using System.Dynamic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Web;
+using Microsoft.AspNetCore.Hosting;
 
 namespace Net.Web.Api.Sdk.Implementations.Information
 {
@@ -26,11 +25,6 @@ namespace Net.Web.Api.Sdk.Implementations.Information
         /// </summary>
         private const string PACKAGE_INFORMATION_FILE_NAME = "packages.info";
 
-        /// <summary>
-        /// The nuget information file name
-        /// </summary>
-        private const string NUGET_INFORMATION_FILE_NAME = "packages.config";
-
         #endregion
 
         #region Services
@@ -40,6 +34,11 @@ namespace Net.Web.Api.Sdk.Implementations.Information
         /// </summary>
         private readonly IJwtTokenService _tokenService;
 
+        /// <summary>
+        /// The web host environment
+        /// </summary>
+        private readonly IWebHostEnvironment _webHostEnvironment;
+
         #endregion
 
         #region Constructors
@@ -48,10 +47,12 @@ namespace Net.Web.Api.Sdk.Implementations.Information
         /// Initializes a new instance of the <see cref="InformationService"/> class.
         /// </summary>
         /// <param name="tokenService">The token service.</param>
+        /// <param name="webHostEnvironment">The web host environment.</param>
         /// <exception cref="ArgumentNullException">tokenService</exception>
-        public InformationService(IJwtTokenService tokenService)
+        public InformationService(IJwtTokenService tokenService, IWebHostEnvironment webHostEnvironment = null)
         {
             _tokenService = tokenService ?? throw new ArgumentNullException(nameof(tokenService));
+            _webHostEnvironment = webHostEnvironment;
         }
 
         #endregion
@@ -62,59 +63,17 @@ namespace Net.Web.Api.Sdk.Implementations.Information
         /// Gets the SDK informations.
         /// </summary>
         /// <returns>dynamic.</returns>
-        /// <exception cref="NotImplementedException"></exception>
         public dynamic GetSdkInformations()
         {           
-            var assembly = Assembly.GetExecutingAssembly();
-            var sourceResource = $"{assembly.GetName().Name}.{NUGET_INFORMATION_FILE_NAME}";
-            var rootPath = HttpContext.Current.Server.MapPath(@"\");
-            var nugetPackageConfigFileName = Path.Combine(rootPath, PACKAGE_INFORMATION_FILE_NAME);
-
-            string content = null;
-
-            using (var stream = assembly.GetManifestResourceStream(sourceResource))
-            {
-                if (stream != null)
-                {
-                    using (var reader = new StreamReader(stream))
-                    {
-                        content = reader.ReadToEnd();
-                    }
-                }
-            }
-
-            if (!string.IsNullOrEmpty(content))
-            {               
-                System.IO.File.WriteAllText(nugetPackageConfigFileName, content);
-            }
-
             dynamic result = new ExpandoObject();
 
             result.library = GetAssemblyInformations();
 
-            var tokens = _tokenService.Tokens.Select(c=>c.Value).ToList().OrderBy(c=>c.TokenName);
-
+            var tokens = _tokenService.Tokens.Select(c => c.Value).ToList().OrderBy(c => c.TokenName);
             result.availableTokens = tokens;
 
-            if(System.IO.File.Exists(nugetPackageConfigFileName))
-            {
-                var packageConfiguration = new PackageReferenceFile(nugetPackageConfigFileName);
-                var allPacakges = packageConfiguration.GetPackageReferences();
-                var nugetPackages = new List<dynamic>();
-
-                foreach (var package in allPacakges)
-                {
-                    dynamic onePackage = new ExpandoObject();
-
-                    onePackage.name = package.Id;
-                    onePackage.version = package.Version.ToString();
-                    onePackage.framework = package.TargetFramework.Version.ToString();
-
-                    nugetPackages.Add(onePackage);
-                }
-
-                result.packages = nugetPackages;
-            }
+            // Get package information from project file or dependencies
+            result.packages = GetPackageInformations();
 
             return result;
         }
@@ -138,14 +97,65 @@ namespace Net.Web.Api.Sdk.Implementations.Information
 
             dynamic result = new ExpandoObject();
 
-            result.title = title.Title;
-            result.description = description.Description;
-            result.version = version.Version;
-            result.copyright = copyright.Copyright;
-            result.author = author.Company;
-            result.license = Resources.License;
+            result.title = title?.Title ?? "Net Web API SDK";
+            result.description = description?.Description ?? "A comprehensive SDK for .NET Web API development";
+            result.version = version?.Version ?? libraryAssembly.GetName().Version?.ToString() ?? "1.0.0";
+            result.copyright = copyright?.Copyright ?? "Copyright © 2024";
+            result.author = author?.Company ?? "SDK Author";
+            result.license = GetLicenseText();
 
             return result;
+        }
+
+        /// <summary>
+        /// Gets the package informations.
+        /// </summary>
+        /// <returns>List of package information.</returns>
+        private List<dynamic> GetPackageInformations()
+        {
+            var packages = new List<dynamic>();
+
+            try
+            {
+                // Get loaded assemblies and their versions
+                var loadedAssemblies = AppDomain.CurrentDomain.GetAssemblies()
+                    .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
+                    .OrderBy(a => a.GetName().Name);
+
+                foreach (var assembly in loadedAssemblies)
+                {
+                    var assemblyName = assembly.GetName();
+                    
+                    dynamic package = new ExpandoObject();
+                    package.name = assemblyName.Name;
+                    package.version = assemblyName.Version?.ToString() ?? "Unknown";
+                    package.framework = assembly.ImageRuntimeVersion ?? "Unknown";
+
+                    packages.Add(package);
+                }
+            }
+            catch (Exception)
+            {
+                // If we can't get package information, return empty list
+            }
+
+            return packages;
+        }
+
+        /// <summary>
+        /// Gets the license text.
+        /// </summary>
+        /// <returns>System.String.</returns>
+        private string GetLicenseText()
+        {
+            try
+            {
+                return Resources.License;
+            }
+            catch
+            {
+                return "License information not available";
+            }
         }
 
         #endregion

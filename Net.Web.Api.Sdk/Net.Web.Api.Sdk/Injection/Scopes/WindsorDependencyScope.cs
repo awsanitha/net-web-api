@@ -1,18 +1,17 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Web.Http.Dependencies;
 using Castle.MicroKernel.Lifestyle;
 using Castle.Windsor;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Net.Web.Api.Sdk.Injection.Scopes
 {
-    /// <inheritdoc />
     /// <summary>
     /// Class WindsorDependencyScope.
+    /// Provides scoped service resolution using Castle Windsor for ASP.NET Core
     /// </summary>
-    /// <seealso cref="T:System.Web.Http.Dependencies.IDependencyScope" />
-    public class WindsorDependencyScope : IDependencyScope
+    public class WindsorDependencyScope : IServiceScope
     {
         #region Private Properties
 
@@ -26,6 +25,11 @@ namespace Net.Web.Api.Sdk.Injection.Scopes
         /// </summary>
         private readonly IDisposable _scope;
 
+        /// <summary>
+        /// The service provider
+        /// </summary>
+        private readonly IServiceProvider _serviceProvider;
+
         #endregion
 
         #region Constructors
@@ -38,33 +42,18 @@ namespace Net.Web.Api.Sdk.Injection.Scopes
         {
             _container = container;
             _scope = container.BeginScope();
+            _serviceProvider = new WindsorServiceProvider(container);
         }
 
         #endregion
 
-        #region IDependencyScope Implementations
+        #region IServiceScope Implementations
 
         /// <inheritdoc />
         /// <summary>
-        /// Retrieves a service from the scope.
+        /// Gets the service provider for this scope.
         /// </summary>
-        /// <param name="serviceType">The service to be retrieved.</param>
-        /// <returns>The retrieved service.</returns>
-        public object GetService(Type serviceType)
-        {
-            return _container.Kernel.HasComponent(serviceType) ? _container.Resolve(serviceType) : null;
-        }
-
-        /// <inheritdoc />
-        /// <summary>
-        /// Retrieves a collection of services from the scope.
-        /// </summary>
-        /// <param name="serviceType">The collection of services to be retrieved.</param>
-        /// <returns>The retrieved collection of services.</returns>
-        public IEnumerable<object> GetServices(Type serviceType)
-        {
-            return _container.ResolveAll(serviceType).Cast<object>();
-        }
+        public IServiceProvider ServiceProvider => _serviceProvider;
 
         /// <inheritdoc />
         /// <summary>
@@ -72,7 +61,36 @@ namespace Net.Web.Api.Sdk.Injection.Scopes
         /// </summary>
         public void Dispose()
         {
-            _scope.Dispose();
+            _scope?.Dispose();
+        }
+
+        #endregion
+
+        #region Private Classes
+
+        /// <summary>
+        /// Windsor service provider for scoped resolution.
+        /// </summary>
+        private class WindsorServiceProvider : IServiceProvider
+        {
+            private readonly IWindsorContainer _container;
+
+            public WindsorServiceProvider(IWindsorContainer container)
+            {
+                _container = container;
+            }
+
+            public object GetService(Type serviceType)
+            {
+                try
+                {
+                    return _container.Kernel.HasComponent(serviceType) ? _container.Resolve(serviceType) : null;
+                }
+                catch
+                {
+                    return null;
+                }
+            }
         }
 
         #endregion

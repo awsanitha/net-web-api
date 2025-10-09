@@ -1,17 +1,14 @@
-﻿using System;
-using System.Net.Http;
-using System.Web.Http.Controllers;
-using System.Web.Http.Dispatcher;
+using System;
 using Castle.Windsor;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Net.Web.Api.Sdk.Injection.Compositions
 {
-    /// <inheritdoc />
     /// <summary>
     /// Class WindsorCompositionRoot.
+    /// Provides integration between Castle Windsor and ASP.NET Core DI
     /// </summary>
-    /// <seealso cref="T:System.Web.Http.Dispatcher.IHttpControllerActivator" />
-    public class WindsorCompositionRoot : IHttpControllerActivator
+    public class WindsorCompositionRoot
     {
         #region Private Properties
 
@@ -35,70 +32,77 @@ namespace Net.Web.Api.Sdk.Injection.Compositions
 
         #endregion
 
-        #region IHttpControllerActivator Implementations 
+        #region Public Methods
 
-        /// <inheritdoc />
         /// <summary>
-        /// Creates an <see cref="T:System.Web.Http.Controllers.IHttpController" /> object.
+        /// Configures the services for ASP.NET Core DI container.
         /// </summary>
-        /// <param name="request">The message request.</param>
-        /// <param name="controllerDescriptor">The HTTP controller descriptor.</param>
-        /// <param name="controllerType">The type of the controller.</param>
-        /// <returns>An <see cref="T:System.Web.Http.Controllers.IHttpController" /> object.</returns>
-        public IHttpController Create(HttpRequestMessage request, HttpControllerDescriptor controllerDescriptor, Type controllerType)
+        /// <param name="services">The service collection.</param>
+        public void ConfigureServices(IServiceCollection services)
         {
-            var controller = (IHttpController)_container.Resolve(controllerType);
+            // Add Windsor container as a service
+            services.AddSingleton(_container);
+            
+            // Add a service factory that uses Windsor to resolve services
+            services.AddTransient<IServiceProvider>(provider => new WindsorServiceProvider(_container));
+        }
 
-            request.RegisterForDispose(new Release(() => _container.Release(controller)));
+        /// <summary>
+        /// Resolves a service from the Windsor container.
+        /// </summary>
+        /// <typeparam name="T">The service type.</typeparam>
+        /// <returns>The resolved service.</returns>
+        public T Resolve<T>()
+        {
+            return _container.Resolve<T>();
+        }
 
-            return controller;
+        /// <summary>
+        /// Resolves a service from the Windsor container.
+        /// </summary>
+        /// <param name="serviceType">The service type.</param>
+        /// <returns>The resolved service.</returns>
+        public object Resolve(Type serviceType)
+        {
+            return _container.Resolve(serviceType);
+        }
+
+        /// <summary>
+        /// Releases a service instance.
+        /// </summary>
+        /// <param name="instance">The instance to release.</param>
+        public void Release(object instance)
+        {
+            _container.Release(instance);
         }
 
         #endregion
 
         #region Private Classes
 
-        /// <inheritdoc />
         /// <summary>
-        /// Class Release. This class cannot be inherited.
+        /// Windsor service provider for ASP.NET Core integration.
         /// </summary>
-        /// <seealso cref="T:System.IDisposable" />
-        private sealed class Release : IDisposable
+        private class WindsorServiceProvider : IServiceProvider
         {
-            #region Private Properties
+            private readonly IWindsorContainer _container;
 
-            /// <summary>
-            /// The release
-            /// </summary>
-            private readonly Action _release;
-
-            #endregion
-
-            #region Constructors
-
-            /// <summary>
-            /// Initializes a new instance of the <see cref="Release"/> class.
-            /// </summary>
-            /// <param name="release">The release.</param>
-            public Release(Action release)
+            public WindsorServiceProvider(IWindsorContainer container)
             {
-                _release = release;
+                _container = container;
             }
 
-            #endregion
-
-            #region IDisposable Implementations
-
-            /// <inheritdoc />
-            /// <summary>
-            /// Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
-            /// </summary>
-            public void Dispose()
+            public object GetService(Type serviceType)
             {
-                _release();
+                try
+                {
+                    return _container.Resolve(serviceType);
+                }
+                catch
+                {
+                    return null;
+                }
             }
-
-            #endregion
         }
 
         #endregion

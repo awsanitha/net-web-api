@@ -1,5 +1,5 @@
-﻿using ByteSizeLib;
-using MultipartDataMediaFormatter.Infrastructure;
+using ByteSizeLib;
+using Microsoft.AspNetCore.Http;
 using Net.Web.Api.Sdk.Properties;
 using System;
 using System.Collections.Generic;
@@ -42,11 +42,11 @@ namespace Net.Web.Api.Sdk.Attributes.Validations
         public UploadFileAttribute(string allowedMimeTypes = null, long fileSizeLimit = 0)
         {
             AllowedMimeTypes = string.IsNullOrEmpty(allowedMimeTypes)
-                ? Settings.Default.AllowedMimeTypes.Cast<string>().ToList()
+                ? GetDefaultAllowedMimeTypes()
                 : allowedMimeTypes.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
                     .Select(c => c.Trim()).ToList();
             
-            FileSizeLimit = fileSizeLimit <= 0 ? Settings.Default.MaxAllowedUploadSize : fileSizeLimit;
+            FileSizeLimit = fileSizeLimit <= 0 ? GetDefaultMaxFileSize() : fileSizeLimit;
         }
 
         #endregion
@@ -64,21 +64,110 @@ namespace Net.Web.Api.Sdk.Attributes.Validations
             var name = string.IsNullOrEmpty(validationContext.DisplayName)
                 ? validationContext.MemberName
                 : validationContext.DisplayName;
-            var fileInformation = (HttpFile)value;
-            var mimeType = fileInformation.MediaType;
+
+            if (value == null)
+            {
+                return ValidationResult.Success; // Allow null values, use [Required] for mandatory files
+            }
+
+            if (!(value is IFormFile file))
+            {
+                return new ValidationResult($"{name} must be a valid file.");
+            }
+
+            var mimeType = file.ContentType;
 
             if (!AllowedMimeTypes.Contains(mimeType))
             {
-                return new ValidationResult(string.Format(Resources.MimeTypeNotAllowedText, name, mimeType));
+                return new ValidationResult(GetMimeTypeErrorMessage(name, mimeType));
             }
 
-            var length = fileInformation.Buffer.LongLength;
+            var length = file.Length;
             var friendlyLength = ByteSize.FromBytes(length).ToString("#.#");
             var friendlyLimit = ByteSize.FromBytes(FileSizeLimit).ToString("#.#");
 
             return length > FileSizeLimit
-                ? new ValidationResult(string.Format(Resources.FileSizeLimitReachedText, friendlyLength, friendlyLimit))
+                ? new ValidationResult(GetFileSizeErrorMessage(friendlyLength, friendlyLimit))
                 : ValidationResult.Success;
+        }
+
+        #endregion
+
+        #region Private Methods
+
+        /// <summary>
+        /// Gets the default allowed MIME types.
+        /// </summary>
+        /// <returns>List of allowed MIME types.</returns>
+        private static List<string> GetDefaultAllowedMimeTypes()
+        {
+            try
+            {
+                return Settings.Default.AllowedMimeTypes.Cast<string>().ToList();
+            }
+            catch
+            {
+                // Fallback to common file types
+                return new List<string>
+                {
+                    "image/jpeg", "image/png", "image/gif", "image/bmp",
+                    "application/pdf", "text/plain", "application/msword",
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                };
+            }
+        }
+
+        /// <summary>
+        /// Gets the default maximum file size.
+        /// </summary>
+        /// <returns>Maximum file size in bytes.</returns>
+        private static long GetDefaultMaxFileSize()
+        {
+            try
+            {
+                return Settings.Default.MaxAllowedUploadSize;
+            }
+            catch
+            {
+                // Fallback to 10MB
+                return 10 * 1024 * 1024;
+            }
+        }
+
+        /// <summary>
+        /// Gets the MIME type error message.
+        /// </summary>
+        /// <param name="fieldName">Name of the field.</param>
+        /// <param name="mimeType">Type of the MIME.</param>
+        /// <returns>Error message.</returns>
+        private static string GetMimeTypeErrorMessage(string fieldName, string mimeType)
+        {
+            try
+            {
+                return string.Format(Resources.MimeTypeNotAllowedText, fieldName, mimeType);
+            }
+            catch
+            {
+                return $"The file type '{mimeType}' is not allowed for field '{fieldName}'.";
+            }
+        }
+
+        /// <summary>
+        /// Gets the file size error message.
+        /// </summary>
+        /// <param name="actualSize">The actual size.</param>
+        /// <param name="maxSize">The maximum size.</param>
+        /// <returns>Error message.</returns>
+        private static string GetFileSizeErrorMessage(string actualSize, string maxSize)
+        {
+            try
+            {
+                return string.Format(Resources.FileSizeLimitReachedText, actualSize, maxSize);
+            }
+            catch
+            {
+                return $"File size {actualSize} exceeds the maximum allowed size of {maxSize}.";
+            }
         }
 
         #endregion
