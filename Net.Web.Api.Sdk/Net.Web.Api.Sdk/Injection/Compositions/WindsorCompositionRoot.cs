@@ -1,23 +1,17 @@
-﻿using System;
-using System.Net.Http;
-using System.Web.Http.Controllers;
-using System.Web.Http.Dispatcher;
+using System;
 using Castle.Windsor;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Controllers;
 
 namespace Net.Web.Api.Sdk.Injection.Compositions
 {
-    /// <inheritdoc />
     /// <summary>
-    /// Class WindsorCompositionRoot.
+    /// Class WindsorCompositionRoot - IControllerActivator backed by Castle Windsor.
     /// </summary>
-    /// <seealso cref="T:System.Web.Http.Dispatcher.IHttpControllerActivator" />
-    public class WindsorCompositionRoot : IHttpControllerActivator
+    public class WindsorCompositionRoot : IControllerActivator
     {
         #region Private Properties
 
-        /// <summary>
-        /// The container
-        /// </summary>
         private readonly IWindsorContainer _container;
 
         #endregion
@@ -27,7 +21,6 @@ namespace Net.Web.Api.Sdk.Injection.Compositions
         /// <summary>
         /// Initializes a new instance of the <see cref="WindsorCompositionRoot"/> class.
         /// </summary>
-        /// <param name="container">The container.</param>
         public WindsorCompositionRoot(IWindsorContainer container)
         {
             _container = container;
@@ -35,70 +28,18 @@ namespace Net.Web.Api.Sdk.Injection.Compositions
 
         #endregion
 
-        #region IHttpControllerActivator Implementations 
+        #region IControllerActivator Implementations
 
         /// <inheritdoc />
-        /// <summary>
-        /// Creates an <see cref="T:System.Web.Http.Controllers.IHttpController" /> object.
-        /// </summary>
-        /// <param name="request">The message request.</param>
-        /// <param name="controllerDescriptor">The HTTP controller descriptor.</param>
-        /// <param name="controllerType">The type of the controller.</param>
-        /// <returns>An <see cref="T:System.Web.Http.Controllers.IHttpController" /> object.</returns>
-        public IHttpController Create(HttpRequestMessage request, HttpControllerDescriptor controllerDescriptor, Type controllerType)
+        public object Create(ControllerContext context)
         {
-            var controller = (IHttpController)_container.Resolve(controllerType);
-
-            request.RegisterForDispose(new Release(() => _container.Release(controller)));
-
-            return controller;
+            return _container.Resolve(context.ActionDescriptor.ControllerTypeInfo.AsType());
         }
 
-        #endregion
-
-        #region Private Classes
-
         /// <inheritdoc />
-        /// <summary>
-        /// Class Release. This class cannot be inherited.
-        /// </summary>
-        /// <seealso cref="T:System.IDisposable" />
-        private sealed class Release : IDisposable
+        public void Release(ControllerContext context, object controller)
         {
-            #region Private Properties
-
-            /// <summary>
-            /// The release
-            /// </summary>
-            private readonly Action _release;
-
-            #endregion
-
-            #region Constructors
-
-            /// <summary>
-            /// Initializes a new instance of the <see cref="Release"/> class.
-            /// </summary>
-            /// <param name="release">The release.</param>
-            public Release(Action release)
-            {
-                _release = release;
-            }
-
-            #endregion
-
-            #region IDisposable Implementations
-
-            /// <inheritdoc />
-            /// <summary>
-            /// Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
-            /// </summary>
-            public void Dispose()
-            {
-                _release();
-            }
-
-            #endregion
+            _container.Release(controller);
         }
 
         #endregion

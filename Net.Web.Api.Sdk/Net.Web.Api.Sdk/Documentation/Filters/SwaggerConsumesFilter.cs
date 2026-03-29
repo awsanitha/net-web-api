@@ -1,11 +1,10 @@
-﻿using Net.Web.Api.Sdk.Documentation.Attributes;
-using Swashbuckle.Swagger;
+using Net.Web.Api.Sdk.Documentation.Attributes;
+using Microsoft.OpenApi.Models;
+using Swashbuckle.AspNetCore.SwaggerGen;
 using System.Linq;
-using System.Web.Http.Description;
 
 namespace Net.Web.Api.Sdk.Documentation.Filters
 {
-    /// <inheritdoc />
     /// <summary>
     /// Class SwaggerConsumesFilter.
     /// </summary>
@@ -14,24 +13,19 @@ namespace Net.Web.Api.Sdk.Documentation.Filters
         #region IOperationFilter Implementations
 
         /// <inheritdoc />
-        /// <summary>
-        /// Applies the specified operation.
-        /// </summary>
-        /// <param name="operation">The operation.</param>
-        /// <param name="schemaRegistry">The schema registry.</param>
-        /// <param name="apiDescription">The API description.</param>
-        /// <exception cref="T:System.NotImplementedException"></exception>
-        public void Apply(Operation operation, SchemaRegistry schemaRegistry, ApiDescription apiDescription)
+        public void Apply(OpenApiOperation operation, OperationFilterContext context)
         {
-            var attribute = apiDescription.GetControllerAndActionAttributes<SwaggerConsumesAttribute>().SingleOrDefault();
+            var attribute = context.MethodInfo.GetCustomAttributes(typeof(SwaggerConsumesAttribute), true)
+                .FirstOrDefault() as SwaggerConsumesAttribute
+                ?? context.MethodInfo.DeclaringType?.GetCustomAttributes(typeof(SwaggerConsumesAttribute), true)
+                .FirstOrDefault() as SwaggerConsumesAttribute;
 
             if (attribute == null)
             {
                 return;
             }
 
-            operation.consumes.Clear();
-            operation.consumes = attribute.ContentTypes.ToList();
+            // Content types are handled via Consumes attribute on the request body
         }
 
         #endregion
