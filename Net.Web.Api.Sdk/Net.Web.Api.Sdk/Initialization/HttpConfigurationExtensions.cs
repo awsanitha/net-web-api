@@ -1,24 +1,13 @@
-﻿using System;
-using System.Globalization;
+using System;
 using System.IO;
-using System.Net.Http.Formatting;
 using System.Reflection;
-using System.Web;
-using System.Web.Http;
-using System.Web.Http.Description;
-using System.Web.Http.Dispatcher;
-using System.Web.Http.Routing;
-using Castle.MicroKernel.ModelBuilder.Inspectors;
+using Asp.Versioning;
 using Castle.MicroKernel.Resolvers.SpecializedResolvers;
 using Castle.Windsor;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Logging;
-using Microsoft.Web.Http;
-using Microsoft.Web.Http.Description;
-using Microsoft.Web.Http.Routing;
-using MultipartDataMediaFormatter;
-using MultipartDataMediaFormatter.Infrastructure;
 using Net.Web.Api.Sdk.Common.Constants;
-using Net.Web.Api.Sdk.Common.Validations;
 using Net.Web.Api.Sdk.Documentation.Filters;
 using Net.Web.Api.Sdk.Injection.Compositions;
 using Net.Web.Api.Sdk.Injection.Containers;
@@ -26,76 +15,33 @@ using Net.Web.Api.Sdk.Injection.Installers;
 using Net.Web.Api.Sdk.Injection.Resolvers;
 using Net.Web.Api.Sdk.Interfaces.Token;
 using Net.Web.Api.Sdk.Security.Handlers;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Serialization;
-using Swashbuckle.Application;
+using Swashbuckle.AspNetCore.SwaggerGen;
 
 namespace Net.Web.Api.Sdk.Initialization
 {
     /// <summary>
-    /// Class HttpConfigurationExtensions.
+    /// Class WebApiSdkExtensions - ASP.NET Core service and app configuration extensions.
     /// </summary>
-    public static class HttpConfigurationExtensions
+    public static class WebApiSdkExtensions
     {
         #region Private Constants
 
-        /// <summary>
-        /// The kit swagger configuration
-        /// </summary>
         private const string KIT_SWAGGER_CONFIGURATION = "SwaggerConfigurationSdk.json";
-
-        /// <summary>
-        /// The kit default token configuration
-        /// </summary>
         private const string KIT_DEFAULT_TOKEN_CONFIGURATION = "token-sdk.config";
-
-        /// <summary>
-        /// The kit documentation
-        /// </summary>
         private const string KIT_DOCUMENTATION = "doc-api-sdk.xml";
-
-        /// <summary>
-        /// The kit index
-        /// </summary>
-        private const string KIT_INDEX = "swagger.html";
 
         #endregion
 
         #region Public Extensions
 
         /// <summary>
-        /// Registers the web API.
+        /// Registers the Web API SDK services into the DI container.
         /// </summary>
-        /// <param name="configuration">The configuration.</param>
-        /// <param name="formatter">The formatter.</param>
-        public static void RegisterWebApi(this HttpConfiguration configuration, JsonMediaTypeFormatter formatter = null)
+        public static IServiceCollection AddWebApiSdk(this IServiceCollection services, string rootPath, string baseUrl = null)
         {
-            configuration.IncludeErrorDetailPolicy = IncludeErrorDetailPolicy.Always;
+            IdentityModelEventSource.ShowPII = true;
 
-            configuration.SetupInjection();
-            configuration.SetupApi(formatter);
-            configuration.EnsureInitialized();
-        }
-
-        /// <summary>
-        /// Uns the register web API.
-        /// </summary>
-        /// <param name="configuration">The configuration.</param>
-        public static void UnRegisterWebApi(this HttpConfiguration configuration)
-        {
-            InjectionContainer.Instance.DisposeContainer();
-        }
-
-        #endregion
-
-        #region Private Extensions
-
-        /// <summary>
-        /// Setups the injection.
-        /// </summary>
-        /// <param name="configuration">The configuration.</param>
-        private static void SetupInjection(this HttpConfiguration configuration)
-        {
+            // Setup Windsor container
             var container = new WindsorContainer();
 
             container.Install(new ControllerInstaller());
@@ -103,201 +49,116 @@ namespace Net.Web.Api.Sdk.Initialization
 
             container.Kernel.Resolver.AddSubResolver(new CollectionResolver(container.Kernel, true));
 
-            var dependencyResolver = new WindsorDependencyResolver(container);
-
-            configuration.DependencyResolver = dependencyResolver;
-
-            configuration.Services.Replace(typeof(IHttpControllerActivator), new WindsorCompositionRoot(container));            
-
             InjectionContainer.Instance.SetContainer(container);
-        }
 
-        /// <summary>
-        /// Setups the API.
-        /// </summary>
-        /// <param name="configuration">The configuration.</param>
-        /// <param name="formatter">The formatter.</param>
-        private static void SetupApi(this HttpConfiguration configuration, JsonMediaTypeFormatter formatter = null)
-        {
-            formatter = configuration.SetupFormatters(formatter);
+            // Register Windsor as controller activator
+            services.AddSingleton<Microsoft.AspNetCore.Mvc.Controllers.IControllerActivator>(
+                new WindsorCompositionRoot(container));
 
-            var apiExplorer = configuration.SetupVersioning();
+            // Register JWT token middleware
+            services.AddTransient<JwtTokenHandler>();
 
-            configuration.SetupSecurity();
-
-            configuration.SetupDocumentation(apiExplorer);
-
-            configuration.Filters.Add(new ParameterValidationActionFilterAttribute(formatter));
-
-            var service = InjectionContainer.Instance.GetService<IJwtTokenService>();
-
-            service?.CleanupTokenDatabase();
-        }
-
-        /// <summary>
-        /// Setups the formatters.
-        /// </summary>
-        /// <param name="configuration">The configuration.</param>
-        /// <param name="formatter">The formatter.</param>
-        /// <returns>JsonMediaTypeFormatter.</returns>
-        private static JsonMediaTypeFormatter SetupFormatters(this HttpConfiguration configuration, JsonMediaTypeFormatter formatter = null)
-        {
-            configuration.Formatters.Clear();
-
-            var fmt = formatter ?? new JsonMediaTypeFormatter
+            // Register validation filter
+            services.AddControllers(options =>
             {
-                SerializerSettings =
-                {
-                    DateFormatHandling = DateFormatHandling.MicrosoftDateFormat,
-                    DateTimeZoneHandling = DateTimeZoneHandling.Local,
-                    ContractResolver = new CamelCasePropertyNamesContractResolver()
-                }
-            };
-
-            configuration.Formatters.Add(fmt);
-
-            var multipartSettings = new MultipartFormatterSettings
+                options.Filters.Add<Common.Validations.ParameterValidationActionFilterAttribute>();
+            })
+            .AddNewtonsoftJson(options =>
             {
-                CultureInfo = CultureInfo.CurrentCulture,
-                SerializeByteArrayAsHttpFile = true,
-                ValidateNonNullableMissedProperty = true
-            };
+                options.SerializerSettings.DateFormatHandling = Newtonsoft.Json.DateFormatHandling.MicrosoftDateFormat;
+                options.SerializerSettings.DateTimeZoneHandling = Newtonsoft.Json.DateTimeZoneHandling.Local;
+                options.SerializerSettings.ContractResolver = new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver();
+            });
 
-            configuration.Formatters.Add(new FormMultipartEncodedMediaTypeFormatter(multipartSettings));
-
-            return fmt;
-        }
-
-        /// <summary>
-        /// Setups the versioning.
-        /// </summary>
-        /// <param name="configuration">The configuration.</param>
-        /// <returns>VersionedApiExplorer.</returns>
-        private static VersionedApiExplorer SetupVersioning(this HttpConfiguration configuration)
-        {
-            var constraintResolver = new DefaultInlineConstraintResolver();
-
-            constraintResolver.ConstraintMap.Add(RouteConstants.API_VERSION_FIELD, typeof(ApiVersionRouteConstraint));
-
-            configuration.AddApiVersioning(o =>
+            // API versioning
+            services.AddApiVersioning(o =>
             {
                 o.ReportApiVersions = true;
                 o.AssumeDefaultVersionWhenUnspecified = true;
                 o.DefaultApiVersion = new ApiVersion(1, 0);
+            })
+            .AddApiExplorer(options =>
+            {
+                options.GroupNameFormat = "'v'VVV";
+                options.SubstituteApiVersionInUrl = true;
             });
 
-            configuration.MapHttpAttributeRoutes(constraintResolver);
-
-            var apiExplorer = configuration.AddVersionedApiExplorer(
-                options =>
-                {
-                    options.GroupNameFormat = "'v'VVV";
-                    options.SubstituteApiVersionInUrl = true;
-                });
-
-            return apiExplorer;
-        }
-
-        /// <summary>
-        /// Setups the security.
-        /// </summary>
-        /// <param name="configuration">The configuration.</param>
-        private static void SetupSecurity(this HttpConfiguration configuration)
-        {
-            IdentityModelEventSource.ShowPII = true;
-
-            configuration.MessageHandlers.Add(new JwtTokenHandler());
-
-            var assembly = Assembly.GetExecutingAssembly();
-
-            ExtractTextResource(assembly, EmbeddedResourceConstants.SECURITY_ASSEMBLY_NAMESPACE, KIT_DEFAULT_TOKEN_CONFIGURATION, KIT_DEFAULT_TOKEN_CONFIGURATION);
-        }
-
-        /// <summary>
-        /// Setups the documentation.
-        /// </summary>
-        /// <param name="configuration">The configuration.</param>
-        /// <param name="apiExplorer">The API explorer.</param>
-        private static void SetupDocumentation(this HttpConfiguration configuration, VersionedApiExplorer apiExplorer)
-        {
-            const string SWAGGER_PATH_PREFIX = "{" + RouteConstants.API_VERSION_FIELD + "}/swagger";
-
-            var swaggerConfiguration = configuration.EnableSwagger(SWAGGER_PATH_PREFIX, swaggerDocConfig =>
+            // CORS
+            services.AddCors(options =>
             {
-                swaggerDocConfig.MultipleApiVersions(
-                    (apiDescription, version) => apiDescription.GetGroupName() == version,
-                    info =>
-                    {
-                        if (apiExplorer.ApiDescriptions == null)
-                        {
-                            return;
-                        }
+                options.AddDefaultPolicy(policy =>
+                {
+                    policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
+                });
+            });
 
-                        foreach (var group in apiExplorer.ApiDescriptions)
-                        {
-                            var description = string.Empty;
+            // Swagger
+            services.AddSwaggerGen(c =>
+            {
+                c.OperationFilter<SwaggerConsumesFilter>();
+                c.OperationFilter<SwaggerProducesFilter>();
+                c.OperationFilter<SwaggerUploadOperationFilter>();
+                c.OperationFilter<SwaggerSecurityTypeAttributeFilter>();
 
-                            if (group.IsDeprecated)
-                            {
-                                description += "This Service version has been deprecated.";
-                            }
+                c.DocumentFilter<SwaggerMethodOrderingFilter>();
+                c.DocumentFilter<SwaggerOperationOrderingFilter>();
 
-                            info.Version(group.Name, $"Version {group.ApiVersion}").Description(description);
-                        }
-                    }
-                );
-
-                swaggerDocConfig.Schemes(new[] { "http", "https" });
-                swaggerDocConfig.PrettyPrint();
-                swaggerDocConfig.DescribeAllEnumsAsStrings();
-                swaggerDocConfig.IgnoreObsoleteActions();
-                swaggerDocConfig.IgnoreObsoleteProperties();
-
-                swaggerDocConfig.OperationFilter<SwaggerConsumesFilter>();
-                swaggerDocConfig.OperationFilter<SwaggerProducesFilter>();
-                swaggerDocConfig.OperationFilter<SwaggerUploadOperationFilter>();
-                swaggerDocConfig.OperationFilter<SwaggerSecurityTypeAttributeFilter>();
-
-                swaggerDocConfig.DocumentFilter<SwaggerMethodOrderingFilter>();
-                swaggerDocConfig.DocumentFilter<SwaggerOperationOrderingFilter>();
-
-                var basePath = $"{AppDomain.CurrentDomain.BaseDirectory}";
+                var basePath = AppDomain.CurrentDomain.BaseDirectory;
                 var files = Directory.GetFiles(basePath, "doc-api-*.xml");
 
                 foreach (var file in files)
                 {
-                    swaggerDocConfig.IncludeXmlComments(file);
+                    c.IncludeXmlComments(file);
                 }
             });
 
+            // Extract embedded resources
             var assembly = Assembly.GetExecutingAssembly();
+            ExtractTextResource(assembly, EmbeddedResourceConstants.SECURITY_ASSEMBLY_NAMESPACE, KIT_DEFAULT_TOKEN_CONFIGURATION, rootPath, KIT_DEFAULT_TOKEN_CONFIGURATION);
+            ExtractTextResource(assembly, EmbeddedResourceConstants.RESOURCE_ASSEMBLY_NAMESPACE, KIT_SWAGGER_CONFIGURATION, rootPath, KIT_SWAGGER_CONFIGURATION);
+            ExtractTextResource(assembly, EmbeddedResourceConstants.RESOURCE_ASSEMBLY_NAMESPACE, KIT_DOCUMENTATION, rootPath, KIT_DOCUMENTATION);
 
-            swaggerConfiguration.EnableSwaggerUi(c =>
-            {               
-                c.CustomAsset("index", assembly, $"{EmbeddedResourceConstants.RESOURCE_ASSEMBLY_NAMESPACE}.index.html");
-                c.InjectJavaScript(assembly, $"{EmbeddedResourceConstants.RESOURCE_ASSEMBLY_NAMESPACE}.swagger-ui-override.js");
-                c.InjectStylesheet(assembly, $"{EmbeddedResourceConstants.RESOURCE_ASSEMBLY_NAMESPACE}.swagger-ui-override.css");
-                c.EnableDiscoveryUrlSelector();
-                c.DisableValidator();
-            });
+            // Cleanup token database
+            var service = InjectionContainer.Instance.GetService<IJwtTokenService>();
+            service?.CleanupTokenDatabase();
 
-            ExtractTextResource(assembly, EmbeddedResourceConstants.RESOURCE_ASSEMBLY_NAMESPACE, KIT_SWAGGER_CONFIGURATION, KIT_SWAGGER_CONFIGURATION);
-            ExtractTextResource(assembly, EmbeddedResourceConstants.RESOURCE_ASSEMBLY_NAMESPACE, KIT_DOCUMENTATION, KIT_DOCUMENTATION);
-            ExtractTextResource(assembly, EmbeddedResourceConstants.RESOURCE_ASSEMBLY_NAMESPACE, KIT_INDEX, "swagger.html");
+            return services;
         }
 
         /// <summary>
-        /// Extracts the text resource.
+        /// Configures the Web API SDK middleware pipeline.
         /// </summary>
-        /// <param name="assembly">The assembly.</param>
-        /// <param name="nameSpace">The name space.</param>
-        /// <param name="source">The source.</param>
-        /// <param name="destin">The destin.</param>
-        private static void ExtractTextResource(Assembly assembly, string nameSpace, string source, string destin)
+        public static IApplicationBuilder UseWebApiSdk(this IApplicationBuilder app)
+        {
+            app.UseCors();
+            app.UseMiddleware<JwtTokenHandler>();
+            app.UseRouting();
+            app.UseAuthorization();
+            app.UseSwagger();
+            app.UseSwaggerUI();
+            app.UseEndpoints(endpoints =>
+            {
+                endpoints.MapControllers();
+            });
+
+            return app;
+        }
+
+        /// <summary>
+        /// Disposes the Windsor container.
+        /// </summary>
+        public static void DisposeWebApiSdk()
+        {
+            InjectionContainer.Instance.DisposeContainer();
+        }
+
+        #endregion
+
+        #region Private Methods
+
+        private static void ExtractTextResource(Assembly assembly, string nameSpace, string source, string rootPath, string destin)
         {
             var sourceResource = $"{nameSpace}.{source}";
-            var rootPath = HttpContext.Current.Server.MapPath(@"\");
-
             var content = string.Empty;
 
             using (var stream = assembly.GetManifestResourceStream(sourceResource))
@@ -311,7 +172,12 @@ namespace Net.Web.Api.Sdk.Initialization
                 }
             }
 
-            var fileName = $@"{rootPath}{destin}";
+            if (string.IsNullOrEmpty(content))
+            {
+                return;
+            }
+
+            var fileName = Path.Combine(rootPath, destin);
 
             File.WriteAllText(fileName, content);
         }

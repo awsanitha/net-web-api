@@ -5,7 +5,6 @@ using System.Linq;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Web;
 using Microsoft.IdentityModel.Tokens;
 using Net.Web.Api.Sdk.Configurations.Token;
 using Newtonsoft.Json;
@@ -415,7 +414,7 @@ namespace Net.Web.Api.Sdk.Models.Token
         /// <returns>System.String.</returns>
         private static string SearchCertificate(string name)
         {
-            var rootPath = HttpContext.Current.Server.MapPath(@"\");
+            var rootPath = AppDomain.CurrentDomain.BaseDirectory;
             var certificate = Directory.GetFiles(rootPath, name, SearchOption.AllDirectories).FirstOrDefault();
 
             return certificate;
@@ -476,9 +475,7 @@ namespace Net.Web.Api.Sdk.Models.Token
 
             if (validatingContent != null && validatingContent.Length > 0)
             {
-                var validatingCertificate = new X509Certificate2();
-
-                validatingCertificate.Import(validatingContent);
+                var validatingCertificate = X509CertificateLoader.LoadCertificate(validatingContent);
 
                 ValidatingTokenCredential = new TokenCredential
                 {
@@ -495,16 +492,9 @@ namespace Net.Web.Api.Sdk.Models.Token
                 return;
             }
 
-            var signingCertificate = new X509Certificate2();
-
-            if (signingCertificatePassword == null)
-            {
-                signingCertificate.Import(signingContent);
-            }
-            else
-            {
-                signingCertificate.Import(signingContent, signingCertificatePassword, X509KeyStorageFlags.Exportable);
-            }
+            var signingCertificate = string.IsNullOrEmpty(signingCertificatePassword)
+                ? X509CertificateLoader.LoadCertificate(signingContent)
+                : X509CertificateLoader.LoadPkcs12(signingContent, signingCertificatePassword, X509KeyStorageFlags.Exportable);
 
             SigningTokenCredential = new TokenCredential
             {

@@ -1,7 +1,6 @@
-﻿using Net.Web.Api.Sdk.Common.Http;
 using System;
 using System.Net.Http.Headers;
-using System.Web.Http.Filters;
+using Microsoft.AspNetCore.Http;
 
 namespace Net.Web.Api.Sdk.Extensions
 {
@@ -13,40 +12,26 @@ namespace Net.Web.Api.Sdk.Extensions
         #region Public Extensions
 
         /// <summary>
-        /// Challenges the with.
+        /// Adds a WWW-Authenticate challenge header to the response.
         /// </summary>
-        /// <param name="context">The context.</param>
-        /// <param name="scheme">The scheme.</param>
-        public static void ChallengeWith(this HttpAuthenticationChallengeContext context, string scheme)
+        public static void ChallengeWith(this HttpResponse response, string scheme)
         {
-            ChallengeWith(context, new AuthenticationHeaderValue(scheme));
+            response.Headers["WWW-Authenticate"] = scheme;
         }
 
         /// <summary>
-        /// Challenges the with.
+        /// Adds a WWW-Authenticate challenge header with parameter to the response.
         /// </summary>
-        /// <param name="context">The context.</param>
-        /// <param name="scheme">The scheme.</param>
-        /// <param name="parameter">The parameter.</param>
-        public static void ChallengeWith(this HttpAuthenticationChallengeContext context, string scheme, string parameter)
+        public static void ChallengeWith(this HttpResponse response, string scheme, string parameter)
         {
-            ChallengeWith(context, new AuthenticationHeaderValue(scheme, parameter));
-        }
-
-        /// <summary>
-        /// Challenges the with.
-        /// </summary>
-        /// <param name="context">The context.</param>
-        /// <param name="challenge">The challenge.</param>
-        /// <exception cref="ArgumentNullException">context</exception>
-        public static void ChallengeWith(this HttpAuthenticationChallengeContext context, AuthenticationHeaderValue challenge)
-        {
-            if (context == null)
+            if (string.IsNullOrEmpty(parameter))
             {
-                throw new ArgumentNullException(nameof(context));
+                response.Headers["WWW-Authenticate"] = scheme;
             }
-
-            context.Result = new ChallengeOnUnauthorizedResult(challenge, context.Result);
+            else
+            {
+                response.Headers["WWW-Authenticate"] = $"{scheme} {parameter}";
+            }
         }
 
         #endregion

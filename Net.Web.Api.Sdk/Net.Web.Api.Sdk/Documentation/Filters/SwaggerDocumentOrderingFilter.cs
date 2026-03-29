@@ -1,4 +1,4 @@
-﻿using Net.Web.Api.Sdk.Documentation.Filters.Common;
+using Net.Web.Api.Sdk.Documentation.Filters.Common;
 
 namespace Web.Api.Toolkit.Filters.Swagger
 {
@@ -6,6 +6,5 @@ namespace Web.Api.Toolkit.Filters.Swagger
     /// Class SwaggerDocumentOrderingFilter.
     /// Implements the <see cref="SwaggerOrderingFilter" />
     /// </summary>
-    /// <seealso cref="SwaggerOrderingFilter" />
     public class SwaggerDocumentOrderingFilter : SwaggerOrderingFilter {}
 }
