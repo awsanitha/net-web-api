@@ -1,7 +1,7 @@
-﻿using Net.Web.Api.Sdk.Common.Http;
+using Net.Web.Api.Sdk.Common.Http;
 using System;
 using System.Net.Http.Headers;
-using System.Web.Http.Filters;
+using Microsoft.AspNetCore.Mvc.Filters;
 
 namespace Net.Web.Api.Sdk.Extensions
 {
@@ -15,9 +15,7 @@ namespace Net.Web.Api.Sdk.Extensions
         /// <summary>
         /// Challenges the with.
         /// </summary>
-        /// <param name="context">The context.</param>
-        /// <param name="scheme">The scheme.</param>
-        public static void ChallengeWith(this HttpAuthenticationChallengeContext context, string scheme)
+        public static void ChallengeWith(this AuthorizationFilterContext context, string scheme)
         {
             ChallengeWith(context, new AuthenticationHeaderValue(scheme));
         }
@@ -25,10 +23,7 @@ namespace Net.Web.Api.Sdk.Extensions
         /// <summary>
         /// Challenges the with.
         /// </summary>
-        /// <param name="context">The context.</param>
-        /// <param name="scheme">The scheme.</param>
-        /// <param name="parameter">The parameter.</param>
-        public static void ChallengeWith(this HttpAuthenticationChallengeContext context, string scheme, string parameter)
+        public static void ChallengeWith(this AuthorizationFilterContext context, string scheme, string parameter)
         {
             ChallengeWith(context, new AuthenticationHeaderValue(scheme, parameter));
         }
@@ -36,10 +31,7 @@ namespace Net.Web.Api.Sdk.Extensions
         /// <summary>
         /// Challenges the with.
         /// </summary>
-        /// <param name="context">The context.</param>
-        /// <param name="challenge">The challenge.</param>
-        /// <exception cref="ArgumentNullException">context</exception>
-        public static void ChallengeWith(this HttpAuthenticationChallengeContext context, AuthenticationHeaderValue challenge)
+        public static void ChallengeWith(this AuthorizationFilterContext context, AuthenticationHeaderValue challenge)
         {
             if (context == null)
             {
