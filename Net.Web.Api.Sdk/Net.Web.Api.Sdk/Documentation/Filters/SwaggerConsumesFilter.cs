@@ -1,7 +1,7 @@
-﻿using Net.Web.Api.Sdk.Documentation.Attributes;
-using Swashbuckle.Swagger;
+using Microsoft.OpenApi.Models;
+using Net.Web.Api.Sdk.Documentation.Attributes;
+using Swashbuckle.AspNetCore.SwaggerGen;
 using System.Linq;
-using System.Web.Http.Description;
 
 namespace Net.Web.Api.Sdk.Documentation.Filters
 {
@@ -11,29 +11,40 @@ namespace Net.Web.Api.Sdk.Documentation.Filters
     /// </summary>
     public class SwaggerConsumesFilter : IOperationFilter
     {
-        #region IOperationFilter Implementations
-
         /// <inheritdoc />
-        /// <summary>
-        /// Applies the specified operation.
-        /// </summary>
-        /// <param name="operation">The operation.</param>
-        /// <param name="schemaRegistry">The schema registry.</param>
-        /// <param name="apiDescription">The API description.</param>
-        /// <exception cref="T:System.NotImplementedException"></exception>
-        public void Apply(Operation operation, SchemaRegistry schemaRegistry, ApiDescription apiDescription)
+        public void Apply(OpenApiOperation operation, OperationFilterContext context)
         {
-            var attribute = apiDescription.GetControllerAndActionAttributes<SwaggerConsumesAttribute>().SingleOrDefault();
+            var attribute = context.MethodInfo.GetCustomAttributes(typeof(SwaggerConsumesAttribute), true)
+                .FirstOrDefault() as SwaggerConsumesAttribute
+                ?? context.MethodInfo.DeclaringType?.GetCustomAttributes(typeof(SwaggerConsumesAttribute), true)
+                .FirstOrDefault() as SwaggerConsumesAttribute;
 
             if (attribute == null)
             {
                 return;
             }
 
-            operation.consumes.Clear();
-            operation.consumes = attribute.ContentTypes.ToList();
-        }
+            if (operation.RequestBody == null)
+            {
+                operation.RequestBody = new OpenApiRequestBody();
+            }
 
-        #endregion
+            // Clear existing content types and add specified ones
+            var existingContent = operation.RequestBody.Content.ToList();
+            operation.RequestBody.Content.Clear();
+
+            foreach (var contentType in attribute.ContentTypes)
+            {
+                if (existingContent.Any(c => c.Key == contentType))
+                {
+                    var existing = existingContent.First(c => c.Key == contentType);
+                    operation.RequestBody.Content.Add(existing.Key, existing.Value);
+                }
+                else
+                {
+                    operation.RequestBody.Content.Add(contentType, new OpenApiMediaType());
+                }
+            }
+        }
     }
 }

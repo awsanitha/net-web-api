@@ -1,7 +1,7 @@
-﻿using Net.Web.Api.Sdk.Documentation.Attributes;
-using Swashbuckle.Swagger;
+using Microsoft.OpenApi.Models;
+using Net.Web.Api.Sdk.Documentation.Attributes;
+using Swashbuckle.AspNetCore.SwaggerGen;
 using System.Linq;
-using System.Web.Http.Description;
 
 namespace Net.Web.Api.Sdk.Documentation.Filters
 {
@@ -11,29 +11,37 @@ namespace Net.Web.Api.Sdk.Documentation.Filters
     /// </summary>
     public class SwaggerProducesFilter : IOperationFilter
     {
-        #region IOperationFilter Implementations
-
         /// <inheritdoc />
-        /// <summary>
-        /// Applies the specified operation.
-        /// </summary>
-        /// <param name="operation">The operation.</param>
-        /// <param name="schemaRegistry">The schema registry.</param>
-        /// <param name="apiDescription">The API description.</param>
-        /// <exception cref="T:System.NotImplementedException"></exception>
-        public void Apply(Operation operation, SchemaRegistry schemaRegistry, ApiDescription apiDescription)
+        public void Apply(OpenApiOperation operation, OperationFilterContext context)
         {
-            var attribute = apiDescription.GetControllerAndActionAttributes<SwaggerProducesAttribute>().SingleOrDefault();
+            var attribute = context.MethodInfo.GetCustomAttributes(typeof(SwaggerProducesAttribute), true)
+                .FirstOrDefault() as SwaggerProducesAttribute;
 
             if (attribute == null)
             {
                 return;
             }
 
-            operation.produces.Clear();
-            operation.produces = attribute.ContentTypes.ToList();
-        }
+            var existingResponses = operation.Responses.ToList();
 
-        #endregion
+            foreach (var response in existingResponses)
+            {
+                var existingContent = response.Value.Content.ToList();
+                response.Value.Content.Clear();
+
+                foreach (var contentType in attribute.ContentTypes)
+                {
+                    if (existingContent.Any(c => c.Key == contentType))
+                    {
+                        var existing = existingContent.First(c => c.Key == contentType);
+                        response.Value.Content.Add(existing.Key, existing.Value);
+                    }
+                    else
+                    {
+                        response.Value.Content.Add(contentType, new OpenApiMediaType());
+                    }
+                }
+            }
+        }
     }
 }
