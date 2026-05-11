@@ -254,7 +254,7 @@ namespace Net.Web.Api.Sdk.Models.Token
 
             if (validatingContent != null && validatingContent.Length > 0)
             {
-                var validatingCertificate = new X509Certificate2(validatingContent);
+                var validatingCertificate = X509CertificateLoader.LoadCertificate(validatingContent);
 
                 ValidatingTokenCredential = new TokenCredential
                 {
@@ -274,11 +274,11 @@ namespace Net.Web.Api.Sdk.Models.Token
 
             if (string.IsNullOrEmpty(signingCertificatePassword))
             {
-                signingCertificate = new X509Certificate2(signingContent);
+                signingCertificate = X509CertificateLoader.LoadCertificate(signingContent);
             }
             else
             {
-                signingCertificate = new X509Certificate2(signingContent, signingCertificatePassword, X509KeyStorageFlags.Exportable);
+                signingCertificate = X509CertificateLoader.LoadPkcs12(signingContent, signingCertificatePassword, X509KeyStorageFlags.Exportable);
             }
 
             SigningTokenCredential = new TokenCredential
