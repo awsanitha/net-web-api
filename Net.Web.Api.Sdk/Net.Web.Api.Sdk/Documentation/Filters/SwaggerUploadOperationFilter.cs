@@ -1,78 +1,44 @@
-﻿using System.Linq;
-using System.Web.Http.Description;
+using System.Linq;
+using Microsoft.OpenApi.Models;
 using Net.Web.Api.Sdk.Documentation.Attributes;
-using Swashbuckle.Swagger;
+using Swashbuckle.AspNetCore.SwaggerGen;
 
 namespace Net.Web.Api.Sdk.Documentation.Filters
 {
-    /// <inheritdoc />
     /// <summary>
-    /// Class SwaggerUploadOperationFilter.
+    /// Replaces parameters with file upload fields when <see cref="SwaggerUploadOperationAttribute"/> is present.
     /// </summary>
-    /// <seealso cref="T:Web.Api.Toolkit.Swashbuckle.Swagger.IOperationFilter" />
     public class SwaggerUploadOperationFilter : IOperationFilter
     {
-        #region IOperationFilter Implementations
-
-        /// <inheritdoc />
-        /// <summary>
-        /// Applies the specified operation.
-        /// </summary>
-        /// <param name="operation">The operation.</param>
-        /// <param name="schemaRegistry">The schema registry.</param>
-        /// <param name="apiDescription">The API description.</param>
-        public void Apply(Operation operation, SchemaRegistry schemaRegistry, ApiDescription apiDescription)
+        public void Apply(OpenApiOperation operation, OperationFilterContext context)
         {
-            var upload = apiDescription.ActionDescriptor.GetCustomAttributes<SwaggerUploadOperationAttribute>().FirstOrDefault();
+            var attr = context.MethodInfo.GetCustomAttributes(typeof(SwaggerUploadOperationAttribute), false)
+                              .FirstOrDefault() as SwaggerUploadOperationAttribute;
 
-            if (upload == null)
+            if (attr == null) return;
+
+            operation.Parameters.Clear();
+
+            var schema = context.SchemaRepository.Schemas.TryGetValue(attr.ParameterType.Name, out var s) ? s : null;
+            if (schema?.Properties == null) return;
+
+            var content = new OpenApiMediaType
             {
-                return;
-            }
-
-            if (!schemaRegistry.Definitions.TryGetValue(upload.ParameterType.Name, out var schema))
-            {
-                return;
-            }
-
-            operation.parameters.Clear();
-
-            foreach (var property in schema.properties)
-            {
-                var name = property.Key;
-                var definition = property.Value;
-
-                if (!string.IsNullOrEmpty(definition.@ref) && definition.@ref.Contains("HttpFile"))
+                Schema = new OpenApiSchema
                 {
-                    operation.parameters.Add(new Parameter
-                    {
-                        name = name,
-                        @in = "formData",
-                        description = definition.description,
-                        @default = definition.@default,
-                        type = "file",
-                        required = schema.required.Contains(name)
-                    });
+                    Type = "object",
+                    Properties = schema.Properties.ToDictionary(
+                        p => p.Key,
+                        p => string.IsNullOrEmpty(p.Value.Reference?.Id) && p.Value.Type != "string"
+                            ? p.Value
+                            : new OpenApiSchema { Type = "string", Format = "binary" })
                 }
-                else
-                {
-                    operation.parameters.Add(new Parameter
-                    {
-                        name = name,
-                        @in = "formData",
-                        description = definition.description,
-                        @default = definition.@default,
-                        type = definition.type,
-                        required = schema.required.Contains(name),
-                        maxLength = definition.maxLength,
-                        minLength = definition.minLength
-                    });
-                }
-            }
+            };
 
-            operation.consumes.Add("multipart/form-data");
+            operation.RequestBody = new OpenApiRequestBody
+            {
+                Content = { ["multipart/form-data"] = content }
+            };
         }
-
-        #endregion
     }
 }
