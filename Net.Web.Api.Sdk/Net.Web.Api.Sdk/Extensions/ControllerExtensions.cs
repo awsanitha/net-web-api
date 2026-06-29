@@ -1,34 +1,23 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
-using System.Web.Http;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Net.Web.Api.Sdk.Extensions
 {
     /// <summary>
-    /// Class ControllerExtensions.
+    /// Extension methods for ASP.NET Core controllers.
     /// </summary>
     public static class ControllerExtensions
     {
-        #region Public Extensions
-
         /// <summary>
-        /// Gets the claims.
+        /// Returns the authenticated claims for the current request.
         /// </summary>
-        /// <param name="controller">The controller.</param>
-        /// <returns>IList&lt;Claim&gt;.</returns>
-        public static IList<Claim> GetClaims(this ApiController controller)
+        public static IList<Claim> GetClaims(this ControllerBase controller)
         {
-            var identity = controller.ActionContext.RequestContext.Principal.Identity;
-
-            if (identity == null || !identity.IsAuthenticated)
-            {
-                return null;
-            }
-
+            var identity = controller.HttpContext.User?.Identity;
+            if (identity == null || !identity.IsAuthenticated) return null;
             return ((ClaimsIdentity)identity).Claims.ToList();
         }
-
-        #endregion
     }
 }

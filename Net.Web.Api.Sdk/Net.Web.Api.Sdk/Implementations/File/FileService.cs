@@ -1,101 +1,66 @@
-﻿using Net.Web.Api.Sdk.Interfaces.File;
 using System;
 using System.IO;
 using System.Text.RegularExpressions;
-using System.Web;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Net.Web.Api.Sdk.Interfaces.File;
 
 namespace Net.Web.Api.Sdk.Implementations.File
 {
-    /// <summary>
-    /// Class FileService.
-    /// Implements the <see cref="IFileService" />
-    /// </summary>
-    /// <seealso cref="IFileService" />
+    /// <inheritdoc />
     public class FileService : IFileService
     {
-        #region Constants
-
-        /// <summary>
-        /// The upload directory name
-        /// </summary>
         private const string UPLOAD_DIRECTORY_NAME = "Upload";
 
-        #endregion
+        private readonly IWebHostEnvironment _env;
+        private readonly IHttpContextAccessor _httpContextAccessor;
 
-        #region ICommonService Implementations
-
-        /// <summary>
-        /// Uploads the file.
-        /// </summary>
-        /// <param name="content">The content.</param>
-        /// <param name="fileName">Name of the file.</param>
-        /// <returns>Uri.</returns>
-        public Uri UploadFile(byte[] content, string fileName)
+        public FileService(IWebHostEnvironment env, IHttpContextAccessor httpContextAccessor)
         {
-            var rootPath = HttpContext.Current.Server.MapPath(@"\");
-            var destinationDirectory = Path.Combine(rootPath, UPLOAD_DIRECTORY_NAME);
-
-            if (!Directory.Exists(destinationDirectory))
-            {
-                Directory.CreateDirectory(destinationDirectory);
-            }
-
-            var destinationFile = GetUniqueFileName(Path.Combine(destinationDirectory, fileName));
-
-            System.IO.File.WriteAllBytes(destinationFile, content);
-
-            var url = HttpContext.Current.Request.Url.AbsoluteUri;
-
-            url = url.Replace(HttpContext.Current.Request.Url.AbsolutePath, string.Empty);
-
-            return new Uri($"{url}/{UPLOAD_DIRECTORY_NAME}/{Path.GetFileName(destinationFile)}");
+            _env = env ?? throw new ArgumentNullException(nameof(env));
+            _httpContextAccessor = httpContextAccessor ?? throw new ArgumentNullException(nameof(httpContextAccessor));
         }
 
-        #endregion
+        public Uri UploadFile(byte[] content, string fileName)
+        {
+            var destDir = Path.Combine(_env.ContentRootPath, UPLOAD_DIRECTORY_NAME);
+            if (!Directory.Exists(destDir)) Directory.CreateDirectory(destDir);
 
-        #region Private Methods
+            var destFile = GetUniqueFileName(Path.Combine(destDir, fileName));
+            System.IO.File.WriteAllBytes(destFile, content);
 
-        /// <summary>
-        /// Gets the name of the unique file.
-        /// </summary>
-        /// <param name="fullFileName">Full name of the file.</param>
-        /// <returns>System.String.</returns>
+            var ctx = _httpContextAccessor.HttpContext;
+            var request = ctx?.Request;
+            var baseUrl = request != null
+                ? $"{request.Scheme}://{request.Host}"
+                : string.Empty;
+
+            return new Uri($"{baseUrl}/{UPLOAD_DIRECTORY_NAME}/{Path.GetFileName(destFile)}");
+        }
+
         private static string GetUniqueFileName(string fullFileName)
         {
-            if (!System.IO.File.Exists(fullFileName))
-            {
-                return fullFileName;
-            }
+            if (!System.IO.File.Exists(fullFileName)) return fullFileName;
 
             var folder = Path.GetDirectoryName(fullFileName);
-
-            if (folder == null)
-            {
-                return fullFileName;
-            }
-
-            var filename = Path.GetFileNameWithoutExtension(fullFileName);
-            var extension = Path.GetExtension(fullFileName);
+            var name = Path.GetFileNameWithoutExtension(fullFileName);
+            var ext = Path.GetExtension(fullFileName);
             var number = 1;
-            var regEx = Regex.Match(fullFileName, @"(.+) \((\d+)\)\.\w+");
-
-            if (regEx.Success)
+            var match = Regex.Match(fullFileName, @"(.+) \((\d+)\)\.\w+");
+            if (match.Success)
             {
-                filename = regEx.Groups[1].Value;
-                number = int.Parse(regEx.Groups[2].Value);
+                name = match.Groups[1].Value;
+                number = int.Parse(match.Groups[2].Value);
             }
 
             do
             {
                 number++;
-
-                fullFileName = Path.Combine(folder, $"{filename} ({number}){extension}");
+                fullFileName = Path.Combine(folder, $"{name} ({number}){ext}");
             }
             while (System.IO.File.Exists(fullFileName));
 
             return fullFileName;
         }
-
-        #endregion
     }
 }
