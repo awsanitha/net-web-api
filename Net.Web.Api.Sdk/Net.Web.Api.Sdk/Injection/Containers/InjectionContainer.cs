@@ -1,10 +1,11 @@
 ﻿using System;
-using Castle.Windsor;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Net.Web.Api.Sdk.Injection.Containers
 {
     /// <summary>
     /// Class InjectionContainer. This class cannot be inherited.
+    /// Provides a static service locator for services that cannot use constructor injection.
     /// </summary>
     public sealed class InjectionContainer
     {
@@ -28,9 +29,9 @@ namespace Net.Web.Api.Sdk.Injection.Containers
         #region Private Properties
 
         /// <summary>
-        /// The container
+        /// The service provider
         /// </summary>
-        private IWindsorContainer _container;
+        private IServiceProvider _serviceProvider;
 
         #endregion
 
@@ -46,12 +47,12 @@ namespace Net.Web.Api.Sdk.Injection.Containers
         #region Public Methods
 
         /// <summary>
-        /// Sets the container.
+        /// Sets the service provider.
         /// </summary>
-        /// <param name="container">The container.</param>
-        public void SetContainer(IWindsorContainer container)
+        /// <param name="serviceProvider">The service provider.</param>
+        public void SetContainer(IServiceProvider serviceProvider)
         {
-            _container = container;
+            _serviceProvider = serviceProvider;
         }
 
         /// <summary>
@@ -61,7 +62,7 @@ namespace Net.Web.Api.Sdk.Injection.Containers
         /// <returns>T.</returns>
         public T GetService<T>()
         {
-            return _container.Resolve<T>();
+            return _serviceProvider.GetService<T>();
         }
 
         #endregion
@@ -73,10 +74,12 @@ namespace Net.Web.Api.Sdk.Injection.Containers
         /// </summary>
         internal void DisposeContainer()
         {
-            _container?.Dispose();
+            if (_serviceProvider is IDisposable disposable)
+            {
+                disposable.Dispose();
+            }
         }
 
         #endregion
-
     }
 }

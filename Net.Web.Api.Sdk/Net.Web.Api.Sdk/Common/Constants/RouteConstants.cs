@@ -8,9 +8,9 @@
         #region Public Constants
 
         /// <summary>
-        /// The route prefix version
+        /// The route prefix version - used with ASP.NET Core API versioning
         /// </summary>
-        public const string ROUTE_PREFIX_VERSION = "api/v{api-version:" + API_VERSION_FIELD + "}";
+        public const string ROUTE_PREFIX_VERSION = "api/v{version:apiVersion}";
 
         #endregion
 

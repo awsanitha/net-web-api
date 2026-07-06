@@ -1,5 +1,5 @@
 ﻿using ByteSizeLib;
-using MultipartDataMediaFormatter.Infrastructure;
+using Microsoft.AspNetCore.Http;
 using Net.Web.Api.Sdk.Properties;
 using System;
 using System.Collections.Generic;
@@ -42,11 +42,11 @@ namespace Net.Web.Api.Sdk.Attributes.Validations
         public UploadFileAttribute(string allowedMimeTypes = null, long fileSizeLimit = 0)
         {
             AllowedMimeTypes = string.IsNullOrEmpty(allowedMimeTypes)
-                ? Settings.Default.AllowedMimeTypes.Cast<string>().ToList()
+                ? Settings.AllowedMimeTypes
                 : allowedMimeTypes.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
                     .Select(c => c.Trim()).ToList();
             
-            FileSizeLimit = fileSizeLimit <= 0 ? Settings.Default.MaxAllowedUploadSize : fileSizeLimit;
+            FileSizeLimit = fileSizeLimit <= 0 ? Settings.MaxAllowedUploadSize : fileSizeLimit;
         }
 
         #endregion
@@ -64,15 +64,27 @@ namespace Net.Web.Api.Sdk.Attributes.Validations
             var name = string.IsNullOrEmpty(validationContext.DisplayName)
                 ? validationContext.MemberName
                 : validationContext.DisplayName;
-            var fileInformation = (HttpFile)value;
-            var mimeType = fileInformation.MediaType;
+
+            if (value == null)
+            {
+                return new ValidationResult(string.Format(Resources.FieldRequiredText, name));
+            }
+
+            var fileInformation = value as IFormFile;
+
+            if (fileInformation == null)
+            {
+                return new ValidationResult(string.Format(Resources.FieldRequiredText, name));
+            }
+
+            var mimeType = fileInformation.ContentType;
 
             if (!AllowedMimeTypes.Contains(mimeType))
             {
                 return new ValidationResult(string.Format(Resources.MimeTypeNotAllowedText, name, mimeType));
             }
 
-            var length = fileInformation.Buffer.LongLength;
+            var length = fileInformation.Length;
             var friendlyLength = ByteSize.FromBytes(length).ToString("#.#");
             var friendlyLimit = ByteSize.FromBytes(FileSizeLimit).ToString("#.#");
 

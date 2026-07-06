@@ -8,27 +8,28 @@ namespace Net.Web.Api.Sdk.Attributes.Validations
 {
     /// <summary>
     /// Class TokenNameExistsAttribute.
-    /// Implements the <see cref="ValidationAttribute" />
+    /// Validates that the token name exists in the configured token service.
     /// </summary>
-    /// <seealso cref="ValidationAttribute" />
     [AttributeUsage(AttributeTargets.Property)]
     public class TokenNameExistsAttribute : ValidationAttribute
     {
         #region ValidationAttribute Overrides
 
-        /// <summary>
-        /// Validates the specified value with respect to the current validation attribute.
-        /// </summary>
-        /// <param name="value">The value to validate.</param>
-        /// <param name="validationContext">The context information about the validation operation.</param>
-        /// <returns>An instance of the <see cref="T:System.ComponentModel.DataAnnotations.ValidationResult" /> class.</returns>
         protected override ValidationResult IsValid(object value, ValidationContext validationContext)
         {
-            var service = InjectionContainer.Instance.GetService<IJwtTokenService>();
+            // Try to get service from validation context first (preferred for ASP.NET Core DI)
+            var service = validationContext.GetService(typeof(IJwtTokenService)) as IJwtTokenService
+                         ?? InjectionContainer.Instance.GetService<IJwtTokenService>();
+
+            if (service == null)
+            {
+                return ValidationResult.Success;
+            }
+
             var tokenName = value != null ? value.ToString().Trim().ToUpper() : string.Empty;
             var exists = service.Tokens.ContainsKey(tokenName);
 
-            if(exists)
+            if (exists)
             {
                 return ValidationResult.Success;
             }

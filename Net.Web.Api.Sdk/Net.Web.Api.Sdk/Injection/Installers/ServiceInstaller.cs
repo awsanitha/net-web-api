@@ -2,26 +2,23 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using Castle.MicroKernel.Registration;
-using Castle.MicroKernel.SubSystems.Configuration;
-using Castle.Windsor;
+using Microsoft.Extensions.DependencyInjection;
 using Net.Web.Api.Sdk.Injection.Attributes;
 
 namespace Net.Web.Api.Sdk.Injection.Installers
 {
-    /// <inheritdoc />
     /// <summary>
     /// Class ServiceInstaller.
+    /// Scans assemblies and registers services tagged with <see cref="InjectInterfaceServiceAttribute"/>.
     /// </summary>
-    /// <seealso cref="T:Castle.MicroKernel.Registration.IWindsorInstaller" />
-    public class ServiceInstaller : IWindsorInstaller
+    public class ServiceInstaller
     {
         #region Private Properties
 
         /// <summary>
         /// The assembly name prefix
         /// </summary>
-        private string _assemblyNamePrefix;
+        private readonly string _assemblyNamePrefix;
 
         #endregion
 
@@ -38,32 +35,21 @@ namespace Net.Web.Api.Sdk.Injection.Installers
 
         #endregion
 
-        #region IWindsorInstaller Implementations
+        #region Public Methods
 
-        /// <inheritdoc />
         /// <summary>
-        /// Performs the installation in the <see cref="T:Castle.Windsor.IWindsorContainer" />.
+        /// Installs services into the <see cref="IServiceCollection"/>.
         /// </summary>
-        /// <param name="container">The container.</param>
-        /// <param name="store">The configuration store.</param>
-        public void Install(IWindsorContainer container, IConfigurationStore store)
+        /// <param name="services">The service collection.</param>
+        public void Install(IServiceCollection services)
         {
-            var assemblyDescriptor = Classes.FromAssemblyInDirectory(new AssemblyFilter(AppDomain.CurrentDomain.RelativeSearchPath));
+            var assemblies = GetAssemblies();
+            var registrations = GetRegistrationList(assemblies);
 
-            if (assemblyDescriptor == null)
+            foreach (var item in registrations)
             {
-                return;
-            }
-
-            var assemblyList = GetAssemblyList(assemblyDescriptor);
-            var registrationList = GetRegistrationList(assemblyList);
-
-            foreach(var item in registrationList)
-            {
-                container.Register(Component.For(item.Key, item.Value)
-                    .ImplementedBy(item.Value)
-                    .Named(item.Key.FullName)
-                    .LifestyleSingleton());
+                // Register as singleton: interface -> implementation
+                services.AddSingleton(item.Key, item.Value);
             }
         }
 
@@ -72,13 +58,25 @@ namespace Net.Web.Api.Sdk.Injection.Installers
         #region Private Methods
 
         /// <summary>
+        /// Gets the assemblies to scan.
+        /// </summary>
+        private IEnumerable<Assembly> GetAssemblies()
+        {
+            return AppDomain.CurrentDomain.GetAssemblies()
+                .Where(a => !a.IsDynamic)
+                .ToList();
+        }
+
+        /// <summary>
         /// Gets the interfaces.
         /// </summary>
         /// <param name="class">The class.</param>
         /// <returns>IList&lt;Type&gt;.</returns>
         private static IList<Type> GetInterfaces(Type @class)
         {
-            return @class.GetInterfaces().Where(@interface => @interface.GetCustomAttribute(typeof(InjectInterfaceServiceAttribute), false) != null).ToList();
+            return @class.GetInterfaces()
+                .Where(@interface => @interface.GetCustomAttribute(typeof(InjectInterfaceServiceAttribute), false) != null)
+                .ToList();
         }
 
         /// <summary>
@@ -88,31 +86,36 @@ namespace Net.Web.Api.Sdk.Injection.Installers
         /// <returns>Dictionary&lt;Type, Type&gt;.</returns>
         private Dictionary<Type, Type> GetRegistrationList(IEnumerable<Assembly> assemblies)
         {
-            var directList = new List<KeyValuePair<Type, Type>>();
-            var inheritedList = new List<KeyValuePair<Type, Type>>();
             var classes = new List<Type>();
 
             foreach (var assembly in assemblies)
             {
-                classes.AddRange(
-                    assembly.GetTypes()
-                        .Where(
-                            @object => @object.IsClass &&
-                            !@object.IsAbstract &&
-                            (
-                                string.IsNullOrEmpty(_assemblyNamePrefix) ||
-                                @object.Assembly.FullName.StartsWith(_assemblyNamePrefix,
-                                StringComparison.CurrentCultureIgnoreCase)
-                            )
-                        ).ToList()
-                );
+                try
+                {
+                    classes.AddRange(
+                        assembly.GetTypes()
+                            .Where(
+                                @object => @object.IsClass &&
+                                !@object.IsAbstract &&
+                                (
+                                    string.IsNullOrEmpty(_assemblyNamePrefix) ||
+                                    @object.Assembly.FullName.StartsWith(_assemblyNamePrefix,
+                                    StringComparison.CurrentCultureIgnoreCase)
+                                )
+                            ).ToList()
+                    );
+                }
+                catch (ReflectionTypeLoadException)
+                {
+                    // Skip assemblies that cannot be fully loaded
+                }
             }
 
             var registrationList = new List<KeyValuePair<Type, Type>>();
 
             foreach (var @class in classes)
             {
-                if (!string.IsNullOrEmpty(_assemblyNamePrefix) && !@class.Assembly.FullName.StartsWith(_assemblyNamePrefix, 
+                if (!string.IsNullOrEmpty(_assemblyNamePrefix) && !@class.Assembly.FullName.StartsWith(_assemblyNamePrefix,
                     StringComparison.CurrentCultureIgnoreCase))
                 {
                     continue;
@@ -120,21 +123,23 @@ namespace Net.Web.Api.Sdk.Injection.Installers
 
                 var interfaces = GetInterfaces(@class);
 
-                if(interfaces.Count == 0 || interfaces.Count > 2)
+                if (interfaces.Count == 0 || interfaces.Count > 2)
                 {
                     continue;
                 }
 
                 Type @interface = null;
 
-                if(interfaces.Count == 2)
+                if (interfaces.Count == 2)
                 {
                     var @interface1 = interfaces[0];
                     var @interface2 = interfaces[1];
 
-                    if(@interface1.GetInterfaces().FirstOrDefault(c=>c.FullName.Equals(@interface2.FullName)) != null) {
+                    if (@interface1.GetInterfaces().FirstOrDefault(c => c.FullName.Equals(@interface2.FullName)) != null)
+                    {
                         @interface = @interface1;
-                    } else if (@interface2.GetInterfaces().FirstOrDefault(c => c.FullName.Equals(@interface1.FullName)) != null)
+                    }
+                    else if (@interface2.GetInterfaces().FirstOrDefault(c => c.FullName.Equals(@interface1.FullName)) != null)
                     {
                         @interface = @interface2;
                     }
@@ -144,7 +149,7 @@ namespace Net.Web.Api.Sdk.Injection.Installers
                     @interface = interfaces[0];
                 }
 
-                if(@interface == null)
+                if (@interface == null)
                 {
                     continue;
                 }
@@ -156,23 +161,22 @@ namespace Net.Web.Api.Sdk.Injection.Installers
 
             var result = new Dictionary<Type, Type>();
 
-            foreach(var item in registrationList)
+            foreach (var item in registrationList)
             {
-                if(!result.ContainsKey(item.Key))
+                if (!result.ContainsKey(item.Key))
                 {
                     result.Add(item.Key, item.Value);
-
                     continue;
                 }
 
-                var @existingClass = result[item.Key];
-                var @currentClass = item.Value;
-                var isExistingClassCustom = IsCustomService(@existingClass);
-                var isCurrentClassCustom = IsCustomService(@currentClass);
+                var existingClass = result[item.Key];
+                var currentClass = item.Value;
+                var isExistingClassCustom = IsCustomService(existingClass);
+                var isCurrentClassCustom = IsCustomService(currentClass);
 
-                if(!isExistingClassCustom && isCurrentClassCustom)
+                if (!isExistingClassCustom && isCurrentClassCustom)
                 {
-                    result[item.Key] = @currentClass;
+                    result[item.Key] = currentClass;
                 }
             }
 
@@ -182,32 +186,9 @@ namespace Net.Web.Api.Sdk.Injection.Installers
         /// <summary>
         /// Determines whether [is custom service] [the specified class].
         /// </summary>
-        /// <param name="class">The class.</param>
-        /// <returns><c>true</c> if [is custom service] [the specified class]; otherwise, <c>false</c>.</returns>
         private static bool IsCustomService(Type @class)
         {
             return @class.GetCustomAttributes(typeof(InjectServiceCustomAttribute), false).FirstOrDefault() != null;
-        }
-
-
-        /// <summary>
-        /// Gets the assembly list.
-        /// </summary>
-        /// <param name="assemblyDescriptor">The assembly descriptor.</param>
-        /// <returns>IList&lt;Assembly&gt;.</returns>
-        private static IEnumerable<Assembly> GetAssemblyList(FromAssemblyDescriptor assemblyDescriptor)
-        {
-            var type = assemblyDescriptor.GetType();
-            var assemblyField = type.GetField("assemblies", BindingFlags.NonPublic | BindingFlags.Instance);
-
-            if (assemblyField == null)
-            {
-                return null;
-            }
-
-            var enumeration = (IEnumerable<Assembly>)assemblyField.GetValue(assemblyDescriptor);
-
-            return enumeration?.ToList();
         }
 
         #endregion
