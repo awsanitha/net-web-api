@@ -1,34 +1,51 @@
-﻿using Net.Web.Api.Sdk.Injection.Containers;
+﻿using System;
+using System.ComponentModel.DataAnnotations;
+using Microsoft.Extensions.DependencyInjection;
+using Net.Web.Api.Sdk.Injection.Containers;
 using Net.Web.Api.Sdk.Interfaces.Token;
 using Net.Web.Api.Sdk.Properties;
-using System;
-using System.ComponentModel.DataAnnotations;
 
 namespace Net.Web.Api.Sdk.Attributes.Validations
 {
     /// <summary>
-    /// Class TokenNameExistsAttribute.
-    /// Implements the <see cref="ValidationAttribute" />
+    /// Class TokenNameExistsAttribute. Validates that the token name exists in the configured token definitions.
     /// </summary>
-    /// <seealso cref="ValidationAttribute" />
     [AttributeUsage(AttributeTargets.Property)]
     public class TokenNameExistsAttribute : ValidationAttribute
     {
         #region ValidationAttribute Overrides
 
-        /// <summary>
-        /// Validates the specified value with respect to the current validation attribute.
-        /// </summary>
-        /// <param name="value">The value to validate.</param>
-        /// <param name="validationContext">The context information about the validation operation.</param>
-        /// <returns>An instance of the <see cref="T:System.ComponentModel.DataAnnotations.ValidationResult" /> class.</returns>
-        protected override ValidationResult IsValid(object value, ValidationContext validationContext)
+        /// <inheritdoc />
+        protected override ValidationResult? IsValid(object? value, ValidationContext validationContext)
         {
-            var service = InjectionContainer.Instance.GetService<IJwtTokenService>();
-            var tokenName = value != null ? value.ToString().Trim().ToUpper() : string.Empty;
+            // Try to resolve the service from DI context first, fall back to InjectionContainer
+            IJwtTokenService? service = null;
+
+            if (validationContext.GetService(typeof(IJwtTokenService)) is IJwtTokenService contextService)
+            {
+                service = contextService;
+            }
+            else
+            {
+                try
+                {
+                    service = InjectionContainer.Instance.GetService<IJwtTokenService>();
+                }
+                catch
+                {
+                    // Service not available
+                }
+            }
+
+            if (service == null)
+            {
+                return ValidationResult.Success;
+            }
+
+            var tokenName = value?.ToString()?.Trim().ToUpper() ?? string.Empty;
             var exists = service.Tokens.ContainsKey(tokenName);
 
-            if(exists)
+            if (exists)
             {
                 return ValidationResult.Success;
             }

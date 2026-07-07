@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
-using System.Web.Http;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Net.Web.Api.Sdk.Extensions
 {
@@ -13,13 +13,13 @@ namespace Net.Web.Api.Sdk.Extensions
         #region Public Extensions
 
         /// <summary>
-        /// Gets the claims.
+        /// Gets the claims from the controller's current user.
         /// </summary>
         /// <param name="controller">The controller.</param>
         /// <returns>IList&lt;Claim&gt;.</returns>
-        public static IList<Claim> GetClaims(this ApiController controller)
+        public static IList<Claim>? GetClaims(this ControllerBase controller)
         {
-            var identity = controller.ActionContext.RequestContext.Principal.Identity;
+            var identity = controller.User?.Identity;
 
             if (identity == null || !identity.IsAuthenticated)
             {

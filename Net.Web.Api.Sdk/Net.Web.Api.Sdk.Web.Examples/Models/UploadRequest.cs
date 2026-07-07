@@ -1,11 +1,11 @@
-﻿using MultipartDataMediaFormatter.Infrastructure;
+﻿using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Http;
 using Net.Web.Api.Sdk.Attributes.Validations;
-using System.ComponentModel.DataAnnotations;
 
 namespace Net.Web.Api.Sdk.Web.Examples.Models
 {
     /// <summary>
-    /// Class UploadRequest.
+    /// Class UploadRequest. Request model for file upload.
     /// </summary>
     public class UploadRequest
     {
@@ -14,10 +14,9 @@ namespace Net.Web.Api.Sdk.Web.Examples.Models
         /// <summary>
         /// File to upload.
         /// </summary>
-        /// <value>The file information.</value>
         [Required]
         [UploadFile]
-        public HttpFile FileInformation { get; set; }
+        public IFormFile? FileInformation { get; set; }
 
         #endregion
     }
