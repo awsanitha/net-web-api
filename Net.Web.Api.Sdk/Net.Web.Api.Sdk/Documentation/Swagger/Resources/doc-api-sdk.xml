@@ -1211,6 +1211,18 @@
             The certificate algorithm.
             </summary>
         </member>
+        <member name="M:Net.Web.Api.Sdk.Models.Token.JwtTokenModel.ShouldSerializeTokenSecurityAlgorithm">
+            <summary>Determines whether <see cref="P:Net.Web.Api.Sdk.Models.Token.JwtTokenModel.TokenSecurityAlgorithm"/> should be serialized.</summary>
+            <returns><c>true</c> if the property has a value; otherwise, <c>false</c>.</returns>
+        </member>
+        <member name="M:Net.Web.Api.Sdk.Models.Token.JwtTokenModel.ShouldSerializeTokenCertificateAlgorithm">
+            <summary>Determines whether <see cref="P:Net.Web.Api.Sdk.Models.Token.JwtTokenModel.TokenCertificateAlgorithm"/> should be serialized.</summary>
+            <returns><c>true</c> if the property has a value; otherwise, <c>false</c>.</returns>
+        </member>
+        <member name="M:Net.Web.Api.Sdk.Models.Token.JwtTokenModel.ShouldSerializeCertificateAlgorithm">
+            <summary>Determines whether <see cref="P:Net.Web.Api.Sdk.Models.Token.JwtTokenModel.CertificateAlgorithm"/> should be serialized.</summary>
+            <returns><c>true</c> if the property has a value; otherwise, <c>false</c>.</returns>
+        </member>
         <member name="M:Net.Web.Api.Sdk.Models.Token.JwtTokenModel.#ctor(System.String,Net.Web.Api.Sdk.Configurations.Token.TokenDefinitionElement,System.String)">
             <summary>
             Initializes a new instance of the <see cref="T:Net.Web.Api.Sdk.Models.Token.JwtTokenModel"/> class.

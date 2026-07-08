@@ -340,10 +340,18 @@ namespace Net.Web.Api.Sdk.Implementations.Token
         {
             var tokens = new Dictionary<string, JwtTokenModel>();
 
+            if (tokenConfigurationSection.Members == null)
+            {
+                return tokens;
+            }
+
             for (var i = 0; i < tokenConfigurationSection.Members.Count; i++)
             {
-                var definition = tokenConfigurationSection.Members[i].Definition;
-                var tokenName = tokenConfigurationSection.Members[i].Name;
+                var member = tokenConfigurationSection.Members[i];
+                if (member == null) continue;
+
+                var definition = member.Definition;
+                var tokenName = member.Name;
 
                 if (definition?.Signature == null || tokens.ContainsKey(tokenName))
                 {

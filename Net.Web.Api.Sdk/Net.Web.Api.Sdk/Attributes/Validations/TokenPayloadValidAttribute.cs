@@ -24,7 +24,7 @@ namespace Net.Web.Api.Sdk.Attributes.Validations
         /// <param name="value">The value to validate.</param>
         /// <param name="validationContext">The context information about the validation operation.</param>
         /// <returns>An instance of the <see cref="T:System.ComponentModel.DataAnnotations.ValidationResult" /> class.</returns>
-        protected override ValidationResult IsValid(object value, ValidationContext validationContext)
+        protected override ValidationResult? IsValid(object? value, ValidationContext validationContext)
         {
             var name = string.IsNullOrEmpty(validationContext.DisplayName)
                 ? validationContext.MemberName
@@ -35,14 +35,14 @@ namespace Net.Web.Api.Sdk.Attributes.Validations
                 return ValidationResult.Success;
             }
 
-            if (value != null && value.GetType() != typeof(List<KeyValuePair<string, string>>))
+            if (value.GetType() != typeof(List<KeyValuePair<string, string>>))
             {
                 return new ValidationResult(string.Format(GetDefaultRequiredMessage(), name));
             }
 
             var collection = value as List<KeyValuePair<string, string>>;
 
-            if (collection.Count == 0)
+            if (collection == null || collection.Count == 0)
             {
                 return ValidationResult.Success;
             }
@@ -96,6 +96,11 @@ namespace Net.Web.Api.Sdk.Attributes.Validations
             var message = string.Empty;
             var assembly = Assembly.GetAssembly(typeof(RequiredAttribute));
 
+            if (assembly == null)
+            {
+                return Resources.FieldRequiredText;
+            }
+
             foreach (var type in assembly.GetTypes())
             {
                 if (!type.Name.Equals("DataAnnotationsResources"))
@@ -110,7 +115,7 @@ namespace Net.Web.Api.Sdk.Attributes.Validations
                     continue;
                 }
 
-                message = (string)property.GetValue(null);
+                message = property.GetValue(null) as string ?? string.Empty;
 
                 break;
             }

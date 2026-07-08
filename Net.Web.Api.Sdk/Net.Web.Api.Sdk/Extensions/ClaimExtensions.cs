@@ -17,7 +17,7 @@ namespace Net.Web.Api.Sdk.Extensions
         /// <param name="claims">The claims.</param>
         /// <param name="name">The name.</param>
         /// <returns>Claim.</returns>
-        public static Claim GetClaimByName(this IList<Claim> claims, string name)
+        public static Claim? GetClaimByName(this IList<Claim> claims, string name)
         {
             return claims.FirstOrDefault(c => c.Type.Equals(name));
         }

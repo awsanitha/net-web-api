@@ -19,7 +19,7 @@ namespace Net.Web.Api.Sdk.Models.Token
         /// Gets or sets the token.
         /// </summary>
         /// <value>The token.</value>
-        public string Token { get; set; }
+        public string? Token { get; set; }
 
         /// <summary>
         /// Gets or sets a value indicating whether this instance is used.

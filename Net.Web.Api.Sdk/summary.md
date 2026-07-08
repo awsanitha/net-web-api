@@ -1,6 +1,6 @@
 # Migration Summary: .NET Framework 4.8 → .NET 10
 
-## Status: ✅ BUILD SUCCEEDED — 0 Errors
+## Status: ✅ BUILD SUCCEEDED — 0 Errors, 0 Warnings
 
 ---
 
@@ -102,18 +102,31 @@
 
 ---
 
-## Remaining Warnings (Non-Breaking)
+## Additional Fixes Applied (Cycle 2)
 
-- `SYSLIB0057` — `X509Certificate2(byte[])` constructor is obsolete in .NET 10; use `X509CertificateLoader` instead (next steps)
-- `CS8603/CS8602/CS8600` — Nullable reference type warnings in original code files (TokenPayloadValidAttribute, configuration classes)
-- `CS1591` — Missing XML documentation comments on JwtTokenModel helper methods
+### SYSLIB0057 — Obsolete X509Certificate2 constructors replaced
+- `new X509Certificate2(byte[])` → `X509CertificateLoader.LoadCertificate(byte[])`
+- `new X509Certificate2(byte[], string, X509KeyStorageFlags)` → `X509CertificateLoader.LoadPkcs12(byte[], string, X509KeyStorageFlags)`
+- File: `Models/Token/JwtTokenModel.cs`
+
+### Nullable reference warnings resolved (CS8603/CS8602/CS8600/CS8765/CS8618/CS8604)
+- `ClaimExtensions.GetClaimByName` return type changed to `Claim?`
+- `TokenElementCollection` indexers return `TokenElement?`
+- `TokenConfigurationSection.Members` property changed to `TokenElementCollection?`
+- `JwtTokenUsedOrRevoked.Token` changed to `string?`
+- `SwaggerOperationOrderAttribute.OperationTags` changed to `string[]?`
+- `TokenPayloadValidAttribute.IsValid` signature updated to `ValidationResult? IsValid(object?, ValidationContext)`; null-guard added for `collection`; `assembly` null-check added
+- `SwaggerOperationOrderingFilter` — null-safe `.ToList()` and `foreach` over `OperationTags?`
+- `JwtTokenService.LoadTokenList` — null-guard for `Members`, null-guard for individual `member`
+
+### XML documentation warnings resolved (CS1591)
+- Added XML doc comments to `JwtTokenModel.ShouldSerializeTokenSecurityAlgorithm()`, `ShouldSerializeTokenCertificateAlgorithm()`, `ShouldSerializeCertificateAlgorithm()`
 
 ---
 
 ## Next Steps
 
-1. **X509 Certificate loading** (`SYSLIB0057`): Replace `new X509Certificate2(bytes)` with `X509CertificateLoader.LoadCertificate(bytes)` in `JwtTokenModel.cs`
-2. **Swagger versioning UI**: Configure multiple Swagger docs (one per API version) in `AddSdkWebApi()` using `Asp.Versioning.Mvc.ApiExplorer`
+1. **Settings migration**: The `app.config` applicationSettings are no longer used — if runtime-configurable settings are needed, read them from `appsettings.json` via `IOptions<T>` instead
+2. **NuGet spec**: Update `Net.Web.Api.Sdk.nuspec` to reflect new dependencies
 3. **Unit tests**: If a test project exists, migrate it to target `net10.0` and update any Web API test helpers
-4. **NuGet spec**: Update `Net.Web.Api.Sdk.nuspec` to reflect new dependencies
-5. **Settings migration**: The `app.config` applicationSettings are no longer used — if runtime-configurable settings are needed, read them from `appsettings.json` via `IOptions<T>` instead
+4. **Swagger versioning UI**: Configure multiple Swagger docs (one per API version) in `AddSdkWebApi()` using `Asp.Versioning.Mvc.ApiExplorer`
