@@ -1,37 +1,37 @@
-﻿using Net.Web.Api.Sdk.Documentation.Attributes;
-using Swashbuckle.Swagger;
-using System.Linq;
-using System.Web.Http.Description;
+﻿using System.Linq;
+using Microsoft.OpenApi.Models;
+using Net.Web.Api.Sdk.Documentation.Attributes;
+using Swashbuckle.AspNetCore.SwaggerGen;
 
 namespace Net.Web.Api.Sdk.Documentation.Filters
 {
-    /// <inheritdoc />
     /// <summary>
-    /// Class SwaggerConsumesFilter.
+    /// Class SwaggerConsumesFilter. Sets the consumes media types from <see cref="SwaggerConsumesAttribute"/>.
     /// </summary>
     public class SwaggerConsumesFilter : IOperationFilter
     {
         #region IOperationFilter Implementations
 
         /// <inheritdoc />
-        /// <summary>
-        /// Applies the specified operation.
-        /// </summary>
-        /// <param name="operation">The operation.</param>
-        /// <param name="schemaRegistry">The schema registry.</param>
-        /// <param name="apiDescription">The API description.</param>
-        /// <exception cref="T:System.NotImplementedException"></exception>
-        public void Apply(Operation operation, SchemaRegistry schemaRegistry, ApiDescription apiDescription)
+        public void Apply(OpenApiOperation operation, OperationFilterContext context)
         {
-            var attribute = apiDescription.GetControllerAndActionAttributes<SwaggerConsumesAttribute>().SingleOrDefault();
+            var attribute = context.MethodInfo.GetCustomAttributes(typeof(SwaggerConsumesAttribute), true)
+                .Concat(context.MethodInfo.DeclaringType?.GetCustomAttributes(typeof(SwaggerConsumesAttribute), true) ?? System.Array.Empty<object>())
+                .OfType<SwaggerConsumesAttribute>()
+                .FirstOrDefault();
 
             if (attribute == null)
             {
                 return;
             }
 
-            operation.consumes.Clear();
-            operation.consumes = attribute.ContentTypes.ToList();
+            operation.RequestBody ??= new OpenApiRequestBody();
+            operation.RequestBody.Content.Clear();
+
+            foreach (var contentType in attribute.ContentTypes)
+            {
+                operation.RequestBody.Content[contentType] = new OpenApiMediaType();
+            }
         }
 
         #endregion

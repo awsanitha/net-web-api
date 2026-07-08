@@ -1,4 +1,12 @@
-﻿using Microsoft.Web.Http;
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Net;
+using Asp.Versioning;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Cors;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Net.Web.Api.Sdk.Common.Constants;
 using Net.Web.Api.Sdk.Documentation.Attributes;
 using Net.Web.Api.Sdk.Interfaces.File;
@@ -6,43 +14,31 @@ using Net.Web.Api.Sdk.Security.Attributes;
 using Net.Web.Api.Sdk.Web.Examples.Classes.Constants;
 using Net.Web.Api.Sdk.Web.Examples.Controllers.Common;
 using Net.Web.Api.Sdk.Web.Examples.Models;
-using Swashbuckle.Swagger.Annotations;
-using System;
-using System.Collections.Generic;
-using System.Net;
-using System.Web.Http;
-using System.Web.Http.Cors;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace Net.Web.Api.Sdk.Web.Examples.Controllers.v1
 {
     /// <summary>
-    /// Class ExampleUploadController. This class cannot be inherited.
-    /// Implements the <see cref="ExampleController" />
+    /// Class ExampleUploadController. Example controller for file upload operations.
     /// </summary>
-    /// <seealso cref="ExampleController" />
-    [EnableCors("*", "*", "*", SupportsCredentials = true)]
+    [EnableCors]
     [AllowAnonymous]
     [ApiVersion("1.0")]
-    [RoutePrefix(RouteConstants.ROUTE_PREFIX_VERSION)]
+    [Route(RouteConstants.ROUTE_PREFIX_VERSION)]
     public sealed class ExampleUploadController : ExampleController
     {
         #region Services
 
-        /// <summary>
-        /// The file service
-        /// </summary>
         private readonly IFileService _fileService;
 
         #endregion
 
         #region Constructors
 
-
         /// <summary>
         /// Initializes a new instance of the <see cref="ExampleUploadController"/> class.
         /// </summary>
         /// <param name="fileService">The file service.</param>
-        /// <exception cref="ArgumentNullException">fileService</exception>
         public ExampleUploadController(IFileService fileService)
         {
             _fileService = fileService ?? throw new ArgumentNullException(nameof(fileService));
@@ -55,8 +51,7 @@ namespace Net.Web.Api.Sdk.Web.Examples.Controllers.v1
         /// <summary>
         /// Uploads a file.
         /// </summary>
-        /// <param name="parameters">The parameters.</param>
-        /// <returns>IHttpActionResult.</returns>
+        /// <param name="parameters">The upload parameters.</param>
         [HttpPost]
         [Route(ROUTE_PREFIX + "uploadFile")]
         [TokenAuthorize]
@@ -65,27 +60,36 @@ namespace Net.Web.Api.Sdk.Web.Examples.Controllers.v1
         [SwaggerOperation(Tags = new[] { ExampleControllerGroups.OTHER })]
         [SwaggerConsumes(ConsumerProducerConstants.MULTIPART)]
         [SwaggerProduces(ConsumerProducerConstants.JSON)]
-        [SwaggerResponse(HttpStatusCode.OK)]
-        [SwaggerResponse(HttpStatusCode.BadRequest, Type = typeof(IList<string>), Description = ResponseDescriptionConstants.INVALID_PARAMETER)]
-        [SwaggerResponse(HttpStatusCode.Forbidden, Description = ResponseDescriptionConstants.ACCESS_FORBIDDEN)]
-        [SwaggerResponse(HttpStatusCode.Unauthorized, Description = ResponseDescriptionConstants.AUTHORIZATION_FAILED)]
-        [SwaggerResponse(HttpStatusCode.InternalServerError, Description = ResponseDescriptionConstants.TECHNICAL_ERROR)]
-
-        public IHttpActionResult UploadFile(UploadRequest parameters)
+        [ProducesResponseType((int)HttpStatusCode.OK)]
+        [ProducesResponseType(typeof(IList<string>), (int)HttpStatusCode.BadRequest)]
+        [ProducesResponseType((int)HttpStatusCode.Forbidden)]
+        [ProducesResponseType((int)HttpStatusCode.Unauthorized)]
+        [ProducesResponseType((int)HttpStatusCode.InternalServerError)]
+        public IActionResult UploadFile([FromForm] UploadRequest parameters)
         {
             try
             {
-                return Ok(_fileService.UploadFile(
-                    parameters.FileInformation.Buffer,
-                    parameters.FileInformation.FileName));
+                if (parameters.FileInformation == null)
+                {
+                    return BadRequest("No file provided.");
+                }
+
+                byte[] fileBytes;
+                using (var memoryStream = new MemoryStream())
+                {
+                    parameters.FileInformation.CopyTo(memoryStream);
+                    fileBytes = memoryStream.ToArray();
+                }
+
+                var result = _fileService.UploadFile(fileBytes, parameters.FileInformation.FileName);
+                return Ok(result);
             }
             catch (Exception ex)
             {
-                return InternalServerError(ex);
+                return StatusCode((int)HttpStatusCode.InternalServerError, ex.Message);
             }
         }
 
         #endregion
-
     }
 }

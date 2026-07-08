@@ -1,6 +1,12 @@
-﻿using Microsoft.Web.Http;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net;
+using Asp.Versioning;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Cors;
+using Microsoft.AspNetCore.Mvc;
 using Net.Web.Api.Sdk.Common.Constants;
-using Net.Web.Api.Sdk.Controllers.Common;
 using Net.Web.Api.Sdk.Documentation.Attributes;
 using Net.Web.Api.Sdk.Extensions;
 using Net.Web.Api.Sdk.Interfaces.Token;
@@ -8,32 +14,21 @@ using Net.Web.Api.Sdk.Security.Attributes;
 using Net.Web.Api.Sdk.Web.Examples.Classes.Constants;
 using Net.Web.Api.Sdk.Web.Examples.Controllers.Common;
 using Net.Web.Api.Sdk.Web.Examples.Models;
-using Swashbuckle.Swagger.Annotations;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net;
-using System.Web.Http;
-using System.Web.Http.Cors;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace Net.Web.Api.Sdk.Web.Examples.Controllers.v1
 {
     /// <summary>
-    /// Class ExampleTokenController.
-    /// Implements the <see cref="ExampleController" />
+    /// Class ExampleTokenController. Example controller demonstrating JWT token operations.
     /// </summary>
-    /// <seealso cref="ExampleController" />
-    [EnableCors("*", "*", "*", SupportsCredentials = true)]
+    [EnableCors]
     [AllowAnonymous]
     [ApiVersion("1.0")]
-    [RoutePrefix(RouteConstants.ROUTE_PREFIX_VERSION)]
+    [Route(RouteConstants.ROUTE_PREFIX_VERSION)]
     public class ExampleTokenController : ExampleController
-    {       
+    {
         #region Services
 
-        /// <summary>
-        /// The token service
-        /// </summary>
         private readonly IJwtTokenService _tokenService;
 
         #endregion
@@ -44,7 +39,6 @@ namespace Net.Web.Api.Sdk.Web.Examples.Controllers.v1
         /// Initializes a new instance of the <see cref="ExampleTokenController"/> class.
         /// </summary>
         /// <param name="tokenService">The token service.</param>
-        /// <exception cref="ArgumentNullException">tokenService</exception>
         public ExampleTokenController(IJwtTokenService tokenService)
         {
             _tokenService = tokenService ?? throw new ArgumentNullException(nameof(tokenService));
@@ -57,7 +51,6 @@ namespace Net.Web.Api.Sdk.Web.Examples.Controllers.v1
         /// <summary>
         /// Creates a new JWT Token.
         /// </summary>
-        /// <returns>IHttpActionResult.</returns>
         [HttpPost]
         [Route(ROUTE_PREFIX + "createToken")]
         [AllowAnonymous]
@@ -65,18 +58,18 @@ namespace Net.Web.Api.Sdk.Web.Examples.Controllers.v1
         [SwaggerOperation(Tags = new[] { ExampleControllerGroups.SECURITY })]
         [SwaggerProduces(ConsumerProducerConstants.JSON)]
         [SwaggerConsumes(ConsumerProducerConstants.JSON)]
-        [SwaggerResponse(HttpStatusCode.OK, Type = typeof(CreateTokenResult))]
-        [SwaggerResponse(HttpStatusCode.BadRequest, Type = typeof(IList<string>), Description = ResponseDescriptionConstants.INVALID_PARAMETER)]
-        [SwaggerResponse(HttpStatusCode.InternalServerError, Description = ResponseDescriptionConstants.TECHNICAL_ERROR)]
-        public IHttpActionResult CreateToken(CreateTokenRequest paramaters)
+        [ProducesResponseType(typeof(CreateTokenResult), (int)HttpStatusCode.OK)]
+        [ProducesResponseType(typeof(IList<string>), (int)HttpStatusCode.BadRequest)]
+        [ProducesResponseType((int)HttpStatusCode.InternalServerError)]
+        public IActionResult CreateToken([FromBody] CreateTokenRequest paramaters)
         {
             try
             {
                 return Ok(
                     new CreateTokenResult(
                         _tokenService.CreateToken(
-                            paramaters.Name,
-                            paramaters.UniqueId,
+                            paramaters.Name!,
+                            paramaters.UniqueId!,
                             paramaters.Payload != null ? paramaters.Payload.ToDictionary(c => c.Key, c => c.Value) : null
                         )
                     )
@@ -84,54 +77,57 @@ namespace Net.Web.Api.Sdk.Web.Examples.Controllers.v1
             }
             catch (Exception ex)
             {
-                return InternalServerError(ex);
+                return StatusCode((int)HttpStatusCode.InternalServerError, ex.Message);
             }
         }
 
         /// <summary>
         /// Revokes a token passed in the authorization header.
         /// </summary>
-        /// <returns>IHttpActionResult.</returns>
         [HttpPost]
         [Route(ROUTE_PREFIX + "revokeToken")]
         [TokenAuthorize]
         [SwaggerMethodOrder(2)]
         [SwaggerOperation(Tags = new[] { ExampleControllerGroups.SECURITY })]
         [SwaggerProduces(ConsumerProducerConstants.JSON)]
-        [SwaggerResponse(HttpStatusCode.OK, Type = typeof(bool))]
-        [SwaggerResponse(HttpStatusCode.Forbidden, Description = ResponseDescriptionConstants.ACCESS_FORBIDDEN)]
-        [SwaggerResponse(HttpStatusCode.Unauthorized, Description = ResponseDescriptionConstants.AUTHORIZATION_FAILED)]
-        [SwaggerResponse(HttpStatusCode.InternalServerError, Description = ResponseDescriptionConstants.TECHNICAL_ERROR)]
-        public IHttpActionResult RevokeToken()
+        [ProducesResponseType(typeof(bool), (int)HttpStatusCode.OK)]
+        [ProducesResponseType((int)HttpStatusCode.Forbidden)]
+        [ProducesResponseType((int)HttpStatusCode.Unauthorized)]
+        [ProducesResponseType((int)HttpStatusCode.InternalServerError)]
+        public IActionResult RevokeToken()
         {
             try
             {
-                var token = ActionContext.GetToken();
-                var claims = this.GetClaims().ToList(); ;
+                var token = HttpContext.Request.GetToken();
+                var claims = this.GetClaims()?.ToList();
+
+                if (string.IsNullOrEmpty(token) || claims == null)
+                {
+                    return Unauthorized();
+                }
 
                 return Ok(_tokenService.RevokeToken(token, claims));
             }
             catch (Exception ex)
             {
-                return InternalServerError(ex);
+                return StatusCode((int)HttpStatusCode.InternalServerError, ex.Message);
             }
         }
 
         /// <summary>
         /// Validates a token passed in the authorization header.
         /// </summary>
-        /// <returns>IHttpActionResult.</returns>
         [HttpGet]
         [Route(ROUTE_PREFIX + "validateToken")]
         [TokenAuthorize]
         [SwaggerMethodOrder(3)]
         [SwaggerOperation(Tags = new[] { ExampleControllerGroups.SECURITY })]
         [SwaggerProduces(ConsumerProducerConstants.JSON)]
-        [SwaggerResponse(HttpStatusCode.OK, Type = typeof(bool))]
-        [SwaggerResponse(HttpStatusCode.Forbidden, Description = ResponseDescriptionConstants.ACCESS_FORBIDDEN)]
-        [SwaggerResponse(HttpStatusCode.Unauthorized, Description = ResponseDescriptionConstants.AUTHORIZATION_FAILED)]
-        [SwaggerResponse(HttpStatusCode.InternalServerError, Description = ResponseDescriptionConstants.TECHNICAL_ERROR)]
-        public IHttpActionResult ValidateToken()
+        [ProducesResponseType(typeof(bool), (int)HttpStatusCode.OK)]
+        [ProducesResponseType((int)HttpStatusCode.Forbidden)]
+        [ProducesResponseType((int)HttpStatusCode.Unauthorized)]
+        [ProducesResponseType((int)HttpStatusCode.InternalServerError)]
+        public IActionResult ValidateToken()
         {
             try
             {
@@ -139,7 +135,7 @@ namespace Net.Web.Api.Sdk.Web.Examples.Controllers.v1
             }
             catch (Exception ex)
             {
-                return InternalServerError(ex);
+                return StatusCode((int)HttpStatusCode.InternalServerError, ex.Message);
             }
         }
 

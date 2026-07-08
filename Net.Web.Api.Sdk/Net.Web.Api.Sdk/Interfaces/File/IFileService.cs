@@ -1,5 +1,5 @@
-﻿using Net.Web.Api.Sdk.Injection.Attributes;
-using System;
+﻿using System;
+using Net.Web.Api.Sdk.Injection.Attributes;
 
 namespace Net.Web.Api.Sdk.Interfaces.File
 {
