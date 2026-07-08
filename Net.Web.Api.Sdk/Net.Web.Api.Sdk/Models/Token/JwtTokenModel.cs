@@ -243,10 +243,16 @@ namespace Net.Web.Api.Sdk.Models.Token
 
         #region Conditional Serializations
 
+        /// <summary>Determines whether <see cref="TokenSecurityAlgorithm"/> should be serialized.</summary>
+        /// <returns><c>true</c> if the property has a value; otherwise, <c>false</c>.</returns>
         public bool ShouldSerializeTokenSecurityAlgorithm() => TokenSecurityAlgorithm.HasValue;
 
+        /// <summary>Determines whether <see cref="TokenCertificateAlgorithm"/> should be serialized.</summary>
+        /// <returns><c>true</c> if the property has a value; otherwise, <c>false</c>.</returns>
         public bool ShouldSerializeTokenCertificateAlgorithm() => !string.IsNullOrEmpty(TokenCertificateAlgorithm);
 
+        /// <summary>Determines whether <see cref="CertificateAlgorithm"/> should be serialized.</summary>
+        /// <returns><c>true</c> if the property has a value; otherwise, <c>false</c>.</returns>
         public bool ShouldSerializeCertificateAlgorithm() => !string.IsNullOrEmpty(CertificateAlgorithm);
 
         #endregion
@@ -390,7 +396,7 @@ namespace Net.Web.Api.Sdk.Models.Token
 
             if (validatingContent != null && validatingContent.Length > 0)
             {
-                var validatingCertificate = new X509Certificate2(validatingContent);
+                var validatingCertificate = X509CertificateLoader.LoadCertificate(validatingContent);
 
                 ValidatingTokenCredential = new TokenCredential
                 {
@@ -410,11 +416,11 @@ namespace Net.Web.Api.Sdk.Models.Token
 
             if (string.IsNullOrEmpty(signingCertificatePassword))
             {
-                signingCertificate = new X509Certificate2(signingContent);
+                signingCertificate = X509CertificateLoader.LoadCertificate(signingContent);
             }
             else
             {
-                signingCertificate = new X509Certificate2(signingContent, signingCertificatePassword, X509KeyStorageFlags.Exportable);
+                signingCertificate = X509CertificateLoader.LoadPkcs12(signingContent, signingCertificatePassword, X509KeyStorageFlags.Exportable);
             }
 
             SigningTokenCredential = new TokenCredential

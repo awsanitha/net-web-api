@@ -157,9 +157,9 @@ namespace Net.Web.Api.Sdk.Documentation.Filters
                 return null;
             }
 
-            var result = sdk.OperationTags.ToList();
+            var result = sdk.OperationTags?.ToList() ?? new System.Collections.Generic.List<string>();
 
-            foreach (var cust in application.OperationTags)
+            foreach (var cust in application.OperationTags ?? System.Array.Empty<string>())
             {
                 if (!result.Contains(cust))
                 {

@@ -32,7 +32,7 @@ namespace Net.Web.Api.Sdk.Configurations.Token
         /// The members.
         /// </value>
         [ConfigurationProperty(COLLECTION_NAME, IsDefaultCollection = true, IsKey = false, IsRequired = true)]
-        public TokenElementCollection Members
+        public TokenElementCollection? Members
         {
             get => base[COLLECTION_NAME] as TokenElementCollection;
 

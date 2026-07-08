@@ -72,14 +72,14 @@ namespace Net.Web.Api.Sdk.Configurations.Token
         /// </summary>
         /// <param name="key">The key.</param>
         /// <returns>TokenElement.</returns>
-        public new TokenElement this[string key] => BaseGet(key) as TokenElement;
+        public new TokenElement? this[string key] => BaseGet(key) as TokenElement;
 
         /// <summary>
         /// Gets the <see cref="TokenElement"/> with the specified identifier.
         /// </summary>
         /// <param name="id">The identifier.</param>
         /// <returns>TokenElement.</returns>
-        public TokenElement this[int id] => BaseGet(id) as TokenElement;
+        public TokenElement? this[int id] => BaseGet(id) as TokenElement;
 
         #endregion
     }

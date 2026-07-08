@@ -41,7 +41,7 @@ namespace Net.Web.Api.Sdk.Documentation.Attributes
         /// Gets the operation tags.
         /// </summary>
         /// <value>The operation tags.</value>
-        public string[] OperationTags { get; set; }
+        public string[]? OperationTags { get; set; }
 
         #endregion
     }
