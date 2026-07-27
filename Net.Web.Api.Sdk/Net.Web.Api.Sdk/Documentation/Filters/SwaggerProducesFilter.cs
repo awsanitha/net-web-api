@@ -1,7 +1,9 @@
-﻿using Net.Web.Api.Sdk.Documentation.Attributes;
-using Swashbuckle.Swagger;
+using Microsoft.AspNetCore.Mvc.Controllers;
+using Microsoft.OpenApi.Models;
+using Net.Web.Api.Sdk.Documentation.Attributes;
+using Swashbuckle.AspNetCore.SwaggerGen;
 using System.Linq;
-using System.Web.Http.Description;
+using System.Reflection;
 
 namespace Net.Web.Api.Sdk.Documentation.Filters
 {
@@ -14,24 +16,39 @@ namespace Net.Web.Api.Sdk.Documentation.Filters
         #region IOperationFilter Implementations
 
         /// <inheritdoc />
-        /// <summary>
-        /// Applies the specified operation.
-        /// </summary>
-        /// <param name="operation">The operation.</param>
-        /// <param name="schemaRegistry">The schema registry.</param>
-        /// <param name="apiDescription">The API description.</param>
-        /// <exception cref="T:System.NotImplementedException"></exception>
-        public void Apply(Operation operation, SchemaRegistry schemaRegistry, ApiDescription apiDescription)
+        public void Apply(OpenApiOperation operation, OperationFilterContext context)
         {
-            var attribute = apiDescription.GetControllerAndActionAttributes<SwaggerProducesAttribute>().SingleOrDefault();
+            SwaggerProducesAttribute attribute = null;
+
+            if (context.MethodInfo != null)
+            {
+                attribute = context.MethodInfo.GetCustomAttribute<SwaggerProducesAttribute>(false);
+            }
+
+            if (attribute == null && context.ApiDescription.ActionDescriptor is ControllerActionDescriptor controllerAction)
+            {
+                attribute = controllerAction.ControllerTypeInfo
+                    .GetCustomAttribute<SwaggerProducesAttribute>(true);
+            }
 
             if (attribute == null)
             {
                 return;
             }
 
-            operation.produces.Clear();
-            operation.produces = attribute.ContentTypes.ToList();
+            // Update responses to reflect produces content type
+            foreach (var response in operation.Responses.Values)
+            {
+                var existingContent = response.Content.Keys.ToList();
+                foreach (var key in existingContent)
+                {
+                    response.Content.Remove(key);
+                }
+                foreach (var contentType in attribute.ContentTypes)
+                {
+                    response.Content[contentType] = new OpenApiMediaType();
+                }
+            }
         }
 
         #endregion

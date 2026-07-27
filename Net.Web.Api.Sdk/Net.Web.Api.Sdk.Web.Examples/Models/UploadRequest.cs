@@ -1,5 +1,4 @@
-﻿using MultipartDataMediaFormatter.Infrastructure;
-using Net.Web.Api.Sdk.Attributes.Validations;
+using Microsoft.AspNetCore.Http;
 using System.ComponentModel.DataAnnotations;
 
 namespace Net.Web.Api.Sdk.Web.Examples.Models
@@ -16,8 +15,7 @@ namespace Net.Web.Api.Sdk.Web.Examples.Models
         /// </summary>
         /// <value>The file information.</value>
         [Required]
-        [UploadFile]
-        public HttpFile FileInformation { get; set; }
+        public IFormFile FileInformation { get; set; }
 
         #endregion
     }

@@ -1,11 +1,10 @@
-﻿using System;
+using System;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Web;
 using Microsoft.IdentityModel.Tokens;
 using Net.Web.Api.Sdk.Configurations.Token;
 using Newtonsoft.Json;
@@ -36,7 +35,7 @@ namespace Net.Web.Api.Sdk.Models.Token
         iss,
 
         /// <summary>
-        /// The token audince
+        /// The token audience
         /// </summary>
         aud,
 
@@ -46,7 +45,7 @@ namespace Net.Web.Api.Sdk.Models.Token
         jti,
 
         /// <summary>
-        /// The the token expiration in minutes
+        /// The token expiration in minutes
         /// </summary>
         exm,
 
@@ -204,9 +203,7 @@ namespace Net.Web.Api.Sdk.Models.Token
         public double TokenExpirationInMinutes { get; }
 
         /// <summary>
-        /// Specifies if the resulting token will be base 64 encoded:
-        ///     - In order to use the token not only in the request header but also as request parameters:
-        ///         - If the result encoded token is padded with = signs, these signs will bew replace by [EQUAL]
+        /// Specifies if the resulting token will be base 64 encoded.
         /// </summary>
         /// <value><c>true</c> if this instance is token base64 encoded; otherwise, <c>false</c>.</value>
         public bool IsTokenBase64Encoded { get; }
@@ -218,9 +215,7 @@ namespace Net.Web.Api.Sdk.Models.Token
         public bool OneTimeUse { get; }
 
         /// <summary>
-        /// The token security type:
-        ///     - PassPhrase
-        ///     - Certificate
+        /// The token security type.
         /// </summary>
         /// <value>The type of the token security.</value>       
         public TokenSecurityTypes TokenSecurityType { get; }
@@ -296,21 +291,12 @@ namespace Net.Web.Api.Sdk.Models.Token
         /// <summary>
         /// Class TokenCredential.
         /// </summary>
-        /// <seealso cref="T:Dot.Net.Web.Api.Sdk.Models.Tokens.Interfaces.ITokenCredential" />
         internal class TokenCredential : ITokenCredential
         {
             /// <inheritdoc />
-            /// <summary>
-            /// Gets or sets the security key.
-            /// </summary>
-            /// <value>The security key.</value>
             public SecurityKey SecurityKey { get; set; }
 
             /// <inheritdoc />
-            /// <summary>
-            /// Gets or sets the signing credentials.
-            /// </summary>
-            /// <value>The signing credentials.</value>
             public SigningCredentials SigningCredentials { get; set; }
         }
 
@@ -323,11 +309,6 @@ namespace Net.Web.Api.Sdk.Models.Token
         /// </summary>
         /// <param name="tokenName">Name of the token.</param>
         /// <param name="definition">The definition.</param>
-        /// <exception cref="ArgumentException"></exception>
-        /// <exception cref="ArgumentException"></exception>
-        /// <exception cref="ArgumentNullException">ValidatingCertificate</exception>
-        /// <exception cref="FileNotFoundException"></exception>
-        /// <exception cref="FileNotFoundException"></exception>
         [SuppressMessage("ReSharper", "NotResolvedInText")]
         public JwtTokenModel(string tokenName, TokenDefinitionElement definition)
         {
@@ -391,12 +372,12 @@ namespace Net.Web.Api.Sdk.Models.Token
             {
                 var signingCertificateFile = SearchCertificate(definition.Signature.SigningCertificate);
 
-                signingContent = File.ReadAllBytes(signingCertificateFile);
-
                 if (string.IsNullOrEmpty(signingCertificateFile))
                 {
                     throw new FileNotFoundException(definition.Signature.SigningCertificate);
                 }
+
+                signingContent = File.ReadAllBytes(signingCertificateFile);
             }
 
             TokenSecurityType = TokenSecurityTypes.Certificate;
@@ -415,7 +396,7 @@ namespace Net.Web.Api.Sdk.Models.Token
         /// <returns>System.String.</returns>
         private static string SearchCertificate(string name)
         {
-            var rootPath = HttpContext.Current.Server.MapPath(@"\");
+            var rootPath = AppContext.BaseDirectory;
             var certificate = Directory.GetFiles(rootPath, name, SearchOption.AllDirectories).FirstOrDefault();
 
             return certificate;
@@ -476,9 +457,8 @@ namespace Net.Web.Api.Sdk.Models.Token
 
             if (validatingContent != null && validatingContent.Length > 0)
             {
-                var validatingCertificate = new X509Certificate2();
-
-                validatingCertificate.Import(validatingContent);
+                // .NET 9+ recommends X509CertificateLoader over constructor byte[] overloads
+                var validatingCertificate = System.Security.Cryptography.X509Certificates.X509CertificateLoader.LoadCertificate(validatingContent);
 
                 ValidatingTokenCredential = new TokenCredential
                 {
@@ -495,15 +475,15 @@ namespace Net.Web.Api.Sdk.Models.Token
                 return;
             }
 
-            var signingCertificate = new X509Certificate2();
+            X509Certificate2 signingCertificate;
 
-            if (signingCertificatePassword == null)
+            if (string.IsNullOrEmpty(signingCertificatePassword))
             {
-                signingCertificate.Import(signingContent);
+                signingCertificate = System.Security.Cryptography.X509Certificates.X509CertificateLoader.LoadCertificate(signingContent);
             }
             else
             {
-                signingCertificate.Import(signingContent, signingCertificatePassword, X509KeyStorageFlags.Exportable);
+                signingCertificate = System.Security.Cryptography.X509Certificates.X509CertificateLoader.LoadPkcs12(signingContent, signingCertificatePassword, X509KeyStorageFlags.Exportable);
             }
 
             SigningTokenCredential = new TokenCredential

@@ -1,60 +1,26 @@
-﻿using System.Linq;
+using Microsoft.AspNetCore.Mvc;
 using System.Net;
-using System.Net.Http;
-using System.Net.Http.Headers;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Web.Http;
 
 namespace Net.Web.Api.Sdk.Common.Http
 {
     /// <summary>
-    /// Class AddChallengeOnUnauthorizedResult.
-    /// Implements the <see cref="IHttpActionResult" />
+    /// Class ChallengeOnUnauthorizedResult.
+    /// Implements the <see cref="IActionResult" />
     /// </summary>
-    /// <seealso cref="IHttpActionResult" />
-    public class ChallengeOnUnauthorizedResult : IHttpActionResult
+    /// <seealso cref="IActionResult" />
+    public class ChallengeOnUnauthorizedResult : IActionResult
     {
         #region Properties
 
         /// <summary>
-        /// Gets the challenge.
+        /// Gets the scheme.
         /// </summary>
-        /// <value>The challenge.</value>
-        public AuthenticationHeaderValue Challenge { get; }
+        public string Scheme { get; }
 
         /// <summary>
-        /// Gets the inner result.
+        /// Gets the parameter.
         /// </summary>
-        /// <value>The inner result.</value>
-        public IHttpActionResult InnerResult { get; }
-
-        #endregion
-
-        #region IHttpActionResult Implementations
-
-        /// <inheritdoc />
-        /// <summary>
-        /// execute as an asynchronous operation.
-        /// </summary>
-        /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
-        /// <returns>A task that, when completed, contains the <see cref="T:System.Net.Http.HttpResponseMessage" />.</returns>
-        public async Task<HttpResponseMessage> ExecuteAsync(CancellationToken cancellationToken)
-        {
-            var response = await InnerResult.ExecuteAsync(cancellationToken);
-
-            if (response.StatusCode != HttpStatusCode.Unauthorized)
-            {
-                return response;
-            }
-
-            if (response.Headers.WwwAuthenticate.All(h => h.Scheme != Challenge.Scheme))
-            {
-                response.Headers.WwwAuthenticate.Add(Challenge);
-            }
-
-            return response;
-        }
+        public string Parameter { get; }
 
         #endregion
 
@@ -63,12 +29,26 @@ namespace Net.Web.Api.Sdk.Common.Http
         /// <summary>
         /// Initializes a new instance of the <see cref="ChallengeOnUnauthorizedResult"/> class.
         /// </summary>
-        /// <param name="challenge">The challenge.</param>
-        /// <param name="innerResult">The inner result.</param>
-        public ChallengeOnUnauthorizedResult(AuthenticationHeaderValue challenge, IHttpActionResult innerResult)
+        /// <param name="scheme">The authentication scheme.</param>
+        /// <param name="parameter">The realm parameter.</param>
+        public ChallengeOnUnauthorizedResult(string scheme, string parameter = null)
         {
-            Challenge = challenge;
-            InnerResult = innerResult;
+            Scheme = scheme;
+            Parameter = parameter;
+        }
+
+        #endregion
+
+        #region IActionResult Implementations
+
+        /// <inheritdoc />
+        public System.Threading.Tasks.Task ExecuteResultAsync(ActionContext context)
+        {
+            var response = context.HttpContext.Response;
+            response.StatusCode = (int)HttpStatusCode.Unauthorized;
+            var headerValue = string.IsNullOrEmpty(Parameter) ? Scheme : $"{Scheme} {Parameter}";
+            response.Headers["WWW-Authenticate"] = headerValue;
+            return System.Threading.Tasks.Task.CompletedTask;
         }
 
         #endregion

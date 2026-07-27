@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Configuration;
 using System.Globalization;
@@ -7,9 +7,8 @@ using System.IO;
 using System.Linq;
 using System.Security.Claims;
 using System.Text;
-using System.Web;
-using System.Web.Http.Controllers;
 using LiteDB;
+using Microsoft.AspNetCore.Http;
 using Microsoft.IdentityModel.Tokens;
 using Net.Web.Api.Sdk.Configurations.Token;
 using Net.Web.Api.Sdk.Extensions;
@@ -26,11 +25,6 @@ namespace Net.Web.Api.Sdk.Implementations.Token
     public class JwtTokenService : IJwtTokenService
     {
         #region Constants
-
-        /// <summary>
-        /// The root path
-        /// </summary>
-        private const string ROOT_PATH = @"\";
 
         /// <summary>
         /// The token config file pattern
@@ -62,6 +56,11 @@ namespace Net.Web.Api.Sdk.Implementations.Token
         /// </summary>
         private string _tokenDataBase;
 
+        /// <summary>
+        /// The HTTP context accessor
+        /// </summary>
+        private readonly IHttpContextAccessor _httpContextAccessor;
+
         #endregion
 
         #region Constructors
@@ -69,8 +68,10 @@ namespace Net.Web.Api.Sdk.Implementations.Token
         /// <summary>
         /// Initializes a new instance of the <see cref="JwtTokenService"/> class.
         /// </summary>
-        public JwtTokenService()
+        /// <param name="httpContextAccessor">The HTTP context accessor.</param>
+        public JwtTokenService(IHttpContextAccessor httpContextAccessor)
         {
+            _httpContextAccessor = httpContextAccessor;
             LoadAllTokens();
             SetupTokenDatabase();
         }
@@ -126,13 +127,13 @@ namespace Net.Web.Api.Sdk.Implementations.Token
         /// <summary>
         /// Gets the token validation parameters.
         /// </summary>
-        /// <param name="validateExipration">if set to <c>true</c> [validate exipration].</param>
+        /// <param name="validateExpiration">if set to <c>true</c> [validate expiration].</param>
         /// <param name="issuers">The issuers.</param>
         /// <param name="audiences">The audiences.</param>
         /// <returns>TokenValidationParameters.</returns>
         public virtual TokenValidationParameters GetTokenValidationParameters(
-            bool validateExipration = false, 
-            string issuers = null, 
+            bool validateExpiration = false,
+            string issuers = null,
             string audiences = null)
         {
             var vi = !string.IsNullOrEmpty(issuers);
@@ -142,8 +143,8 @@ namespace Net.Web.Api.Sdk.Implementations.Token
             {
                 ValidateActor = false,
                 RequireSignedTokens = true,
-                RequireExpirationTime = validateExipration,
-                ValidateLifetime = validateExipration,
+                RequireExpirationTime = validateExpiration,
+                ValidateLifetime = validateExpiration,
                 ValidateIssuer = vi,
                 ValidateAudience = va,
                 ValidateIssuerSigningKey = false,
@@ -168,18 +169,18 @@ namespace Net.Web.Api.Sdk.Implementations.Token
         /// <summary>
         /// Gets the token payload.
         /// </summary>
-        /// <param name="context">The context.</param>
+        /// <param name="context">The HTTP context.</param>
         /// <returns>Dictionary&lt;System.String, System.String&gt;.</returns>
-        public virtual Dictionary<string, string> GetTokenPayload(HttpActionContext context)
+        public virtual Dictionary<string, string> GetTokenPayload(HttpContext context)
         {
-            var identity = context.RequestContext.Principal.Identity;
+            var identity = context?.User?.Identity;
 
             if (identity == null || !identity.IsAuthenticated)
             {
                 return new Dictionary<string, string>();
             }
 
-            context.GetToken(out var securityToken);
+            context.Request.GetToken(out var securityToken);
 
             return securityToken?.Claims?.ToClaimDictionary() ?? new Dictionary<string, string>();
         }
@@ -188,11 +189,11 @@ namespace Net.Web.Api.Sdk.Implementations.Token
         /// <summary>
         /// Gets the identity payload.
         /// </summary>
-        /// <param name="context">The context.</param>
+        /// <param name="context">The HTTP context.</param>
         /// <returns>Dictionary&lt;System.String, System.String&gt;.</returns>
-        public virtual Dictionary<string, string> GetIdentityPayload(HttpActionContext context)
+        public virtual Dictionary<string, string> GetIdentityPayload(HttpContext context)
         {
-            var principal = context.RequestContext.Principal;
+            var principal = context?.User;
             var identity = principal?.Identity;
 
             if (identity == null || !identity.IsAuthenticated)
@@ -200,10 +201,10 @@ namespace Net.Web.Api.Sdk.Implementations.Token
                 return new Dictionary<string, string>();
             }
 
-            var claims = ((ClaimsIdentity) identity).Claims;
+            var claims = ((ClaimsIdentity)identity).Claims;
 
             var result = claims?.ToClaimDictionary(true) ?? new Dictionary<string, string>();
-            
+
             return result;
         }
 
@@ -217,7 +218,7 @@ namespace Net.Web.Api.Sdk.Implementations.Token
         {
             var found = GetTokenState(token, claims, out var isRevoked, out _);
 
-            if(!found)
+            if (!found)
             {
                 return false;
             }
@@ -233,7 +234,7 @@ namespace Net.Web.Api.Sdk.Implementations.Token
         /// <returns><c>true</c> if [is token used] [the specified token]; otherwise, <c>false</c>.</returns>
         public virtual bool IsTokenUsed(string token, List<Claim> claims)
         {
-            if(!claims.IsTokenOneTimeUse())
+            if (!claims.IsTokenOneTimeUse())
             {
                 return false;
             }
@@ -257,12 +258,12 @@ namespace Net.Web.Api.Sdk.Implementations.Token
         {
             var found = GetTokenState(token, claims, out _, out _);
 
-            if(found)
+            if (found)
             {
                 return false;
             }
 
-            return RevokeToken(token);
+            return RevokeTokenInternal(token);
         }
 
         /// <summary>
@@ -284,7 +285,7 @@ namespace Net.Web.Api.Sdk.Implementations.Token
                 return;
             }
 
-            MarkTokenAsUsed(token);
+            MarkTokenAsUsedInternal(token);
         }
 
         /// <summary>
@@ -300,7 +301,7 @@ namespace Net.Web.Api.Sdk.Implementations.Token
                 var tokens = db.GetCollection<JwtTokenUsedOrRevoked>(TOKEN_DATA_COLLECTION);
                 var now = DateTime.UtcNow;
 
-                count = tokens.Delete(c => c.ExpirationDate.CompareTo(now) > 0);
+                count = tokens.DeleteMany(c => c.ExpirationDate.CompareTo(now) > 0);
             }
 
             return count;
@@ -311,17 +312,17 @@ namespace Net.Web.Api.Sdk.Implementations.Token
         #region Private Methods
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="JwtTokenService" /> class.
+        /// Revokes the token (internal).
         /// </summary>
         /// <param name="token">The token.</param>
-        private bool RevokeToken(string token)
+        private bool RevokeTokenInternal(string token)
         {
             using (var db = new LiteDatabase(_tokenDataBase))
             {
                 var tokens = db.GetCollection<JwtTokenUsedOrRevoked>(TOKEN_DATA_COLLECTION);
                 var found = tokens.Find(c => c.Token.Equals(token)).FirstOrDefault();
 
-                if(found == null)
+                if (found == null)
                 {
                     var record = new JwtTokenUsedOrRevoked
                     {
@@ -339,10 +340,10 @@ namespace Net.Web.Api.Sdk.Implementations.Token
         }
 
         /// <summary>
-        /// Marks the token as used.
+        /// Marks the token as used (internal).
         /// </summary>
         /// <param name="token">The token.</param>
-        private void MarkTokenAsUsed(string token)
+        private void MarkTokenAsUsedInternal(string token)
         {
             using (var db = new LiteDatabase(_tokenDataBase))
             {
@@ -406,8 +407,8 @@ namespace Net.Web.Api.Sdk.Implementations.Token
         private IEnumerable<SecurityKey> GetAllSecurityKeys()
         {
             return (from td in Tokens
-                where td.Value.ValidatingTokenCredential?.SecurityKey != null
-                select td.Value.ValidatingTokenCredential.SecurityKey).ToList();
+                    where td.Value.ValidatingTokenCredential?.SecurityKey != null
+                    select td.Value.ValidatingTokenCredential.SecurityKey).ToList();
         }
 
         /// <summary>
@@ -417,8 +418,8 @@ namespace Net.Web.Api.Sdk.Implementations.Token
         /// <param name="identityName">Name of the identity.</param>
         /// <param name="customClaims">The custom claims.</param>
         /// <returns>ClaimsIdentity.</returns>
-        private static ClaimsIdentity GetTokenSubject(JwtTokenModel definition, 
-            string identityName, 
+        private static ClaimsIdentity GetTokenSubject(JwtTokenModel definition,
+            string identityName,
             IReadOnlyDictionary<string, string> customClaims)
         {
             var identity = new ClaimsIdentity("Bearer");
@@ -458,8 +459,8 @@ namespace Net.Web.Api.Sdk.Implementations.Token
         /// <returns>System.String.</returns>
         private static string FormatToken(string generatedToken, JwtTokenModel definition)
         {
-            return !definition.IsTokenBase64Encoded 
-                ? generatedToken 
+            return !definition.IsTokenBase64Encoded
+                ? generatedToken
                 : Convert.ToBase64String(Encoding.UTF8.GetBytes(generatedToken)).ToSecuredEncoded64Padding();
         }
 
@@ -467,7 +468,7 @@ namespace Net.Web.Api.Sdk.Implementations.Token
         /// Loads the token list.
         /// </summary>
         /// <param name="tokenConfigurationSection">The token configuration section.</param>
-        /// <returns>Dictionary&lt;System.String, ApiTokenModel&gt;.</returns>
+        /// <returns>Dictionary&lt;System.String, JwtTokenModel&gt;.</returns>
         private static Dictionary<string, JwtTokenModel> LoadTokenList(TokenConfigurationSection tokenConfigurationSection)
         {
             var tokens = new Dictionary<string, JwtTokenModel>();
@@ -495,19 +496,25 @@ namespace Net.Web.Api.Sdk.Implementations.Token
         {
             Tokens = new Dictionary<string, JwtTokenModel>();
 
-            var rootPath = HttpContext.Current.Server.MapPath(ROOT_PATH);
+            var rootPath = AppContext.BaseDirectory;
             var configurationFileList = Directory.GetFiles(rootPath, TOKEN_CONFIG_FILE_PATTERN, SearchOption.AllDirectories);
 
             if (!configurationFileList.Any())
             {
                 return;
-            }            
+            }
 
             foreach (var configurationFile in configurationFileList)
             {
                 var configMap = new ExeConfigurationFileMap { ExeConfigFilename = configurationFile };
                 var config = ConfigurationManager.OpenMappedExeConfiguration(configMap, ConfigurationUserLevel.None);
-                var tokenSection = (TokenConfigurationSection) config.GetSection(TokenConfigurationSection.SECTION_NAME);
+                var tokenSection = (TokenConfigurationSection)config.GetSection(TokenConfigurationSection.SECTION_NAME);
+
+                if (tokenSection == null)
+                {
+                    continue;
+                }
+
                 var tokenList = LoadTokenList(tokenSection);
 
                 foreach (var token in tokenList)
@@ -529,10 +536,10 @@ namespace Net.Web.Api.Sdk.Implementations.Token
         /// </summary>
         private void SetupTokenDatabase()
         {
-            var rootPath = HttpContext.Current.Server.MapPath(ROOT_PATH);
+            var rootPath = AppContext.BaseDirectory;
             var dataBasePath = Path.Combine(rootPath, "db");
 
-            if(!Directory.Exists(dataBasePath))
+            if (!Directory.Exists(dataBasePath))
             {
                 Directory.CreateDirectory(dataBasePath);
             }
