@@ -1,17 +1,18 @@
-﻿using Net.Web.Api.Sdk.Common.Constants;
+using Net.Web.Api.Sdk.Common.Constants;
 using Net.Web.Api.Sdk.Documentation.Attributes;
-using System.Web.Http;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Net.Web.Api.Sdk.Controllers.Common
 {
     /// <summary>
     /// Class SdkController.
-    /// Implements the <see cref="ApiController" />
+    /// Implements the <see cref="ControllerBase" />
     /// </summary>
-    /// <seealso cref="ApiController" />
+    /// <seealso cref="ControllerBase" />
     [SwaggerOperationOrder(From = SwaggerOperationOrderAttribute.OperationFrom.Sdk,
         OperationTags = new[] {
             SwaggerSdkConstants.ABOUT
         })]
-    public class SdkController : ApiController {}
+    [ApiController]
+    public class SdkController : ControllerBase {}
 }

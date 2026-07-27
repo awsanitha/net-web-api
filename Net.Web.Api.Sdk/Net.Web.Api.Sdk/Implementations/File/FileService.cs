@@ -1,8 +1,8 @@
-﻿using Net.Web.Api.Sdk.Interfaces.File;
+using Microsoft.AspNetCore.Http;
+using Net.Web.Api.Sdk.Interfaces.File;
 using System;
 using System.IO;
 using System.Text.RegularExpressions;
-using System.Web;
 
 namespace Net.Web.Api.Sdk.Implementations.File
 {
@@ -22,7 +22,29 @@ namespace Net.Web.Api.Sdk.Implementations.File
 
         #endregion
 
-        #region ICommonService Implementations
+        #region Private Fields
+
+        /// <summary>
+        /// The HTTP context accessor
+        /// </summary>
+        private readonly IHttpContextAccessor _httpContextAccessor;
+
+        #endregion
+
+        #region Constructors
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="FileService"/> class.
+        /// </summary>
+        /// <param name="httpContextAccessor">The HTTP context accessor.</param>
+        public FileService(IHttpContextAccessor httpContextAccessor)
+        {
+            _httpContextAccessor = httpContextAccessor ?? throw new ArgumentNullException(nameof(httpContextAccessor));
+        }
+
+        #endregion
+
+        #region IFileService Implementations
 
         /// <summary>
         /// Uploads the file.
@@ -32,8 +54,8 @@ namespace Net.Web.Api.Sdk.Implementations.File
         /// <returns>Uri.</returns>
         public Uri UploadFile(byte[] content, string fileName)
         {
-            var rootPath = HttpContext.Current.Server.MapPath(@"\");
-            var destinationDirectory = Path.Combine(rootPath, UPLOAD_DIRECTORY_NAME);
+            var contentRootPath = AppContext.BaseDirectory;
+            var destinationDirectory = Path.Combine(contentRootPath, UPLOAD_DIRECTORY_NAME);
 
             if (!Directory.Exists(destinationDirectory))
             {
@@ -44,11 +66,14 @@ namespace Net.Web.Api.Sdk.Implementations.File
 
             System.IO.File.WriteAllBytes(destinationFile, content);
 
-            var url = HttpContext.Current.Request.Url.AbsoluteUri;
+            var httpContext = _httpContextAccessor.HttpContext;
+            var request = httpContext?.Request;
 
-            url = url.Replace(HttpContext.Current.Request.Url.AbsolutePath, string.Empty);
+            var baseUrl = request != null
+                ? $"{request.Scheme}://{request.Host}"
+                : string.Empty;
 
-            return new Uri($"{url}/{UPLOAD_DIRECTORY_NAME}/{Path.GetFileName(destinationFile)}");
+            return new Uri($"{baseUrl}/{UPLOAD_DIRECTORY_NAME}/{Path.GetFileName(destinationFile)}");
         }
 
         #endregion

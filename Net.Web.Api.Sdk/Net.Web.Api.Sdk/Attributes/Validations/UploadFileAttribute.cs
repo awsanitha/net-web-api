@@ -1,5 +1,5 @@
-﻿using ByteSizeLib;
-using MultipartDataMediaFormatter.Infrastructure;
+using ByteSizeLib;
+using Microsoft.AspNetCore.Http;
 using Net.Web.Api.Sdk.Properties;
 using System;
 using System.Collections.Generic;
@@ -45,7 +45,7 @@ namespace Net.Web.Api.Sdk.Attributes.Validations
                 ? Settings.Default.AllowedMimeTypes.Cast<string>().ToList()
                 : allowedMimeTypes.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
                     .Select(c => c.Trim()).ToList();
-            
+
             FileSizeLimit = fileSizeLimit <= 0 ? Settings.Default.MaxAllowedUploadSize : fileSizeLimit;
         }
 
@@ -64,15 +64,25 @@ namespace Net.Web.Api.Sdk.Attributes.Validations
             var name = string.IsNullOrEmpty(validationContext.DisplayName)
                 ? validationContext.MemberName
                 : validationContext.DisplayName;
-            var fileInformation = (HttpFile)value;
-            var mimeType = fileInformation.MediaType;
 
-            if (!AllowedMimeTypes.Contains(mimeType))
+            if (value == null)
+            {
+                return ValidationResult.Success;
+            }
+
+            if (!(value is IFormFile fileInformation))
+            {
+                return new ValidationResult(string.Format(Resources.FieldRequiredText, name));
+            }
+
+            var mimeType = fileInformation.ContentType;
+
+            if (AllowedMimeTypes != null && AllowedMimeTypes.Count > 0 && !AllowedMimeTypes.Contains(mimeType))
             {
                 return new ValidationResult(string.Format(Resources.MimeTypeNotAllowedText, name, mimeType));
             }
 
-            var length = fileInformation.Buffer.LongLength;
+            var length = fileInformation.Length;
             var friendlyLength = ByteSize.FromBytes(length).ToString("#.#");
             var friendlyLimit = ByteSize.FromBytes(FileSizeLimit).ToString("#.#");
 

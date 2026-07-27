@@ -1,6 +1,6 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Security.Claims;
-using System.Web.Http.Controllers;
+using Microsoft.AspNetCore.Http;
 using Microsoft.IdentityModel.Tokens;
 using Net.Web.Api.Sdk.Injection.Attributes;
 using Net.Web.Api.Sdk.Models.Token;
@@ -31,25 +31,25 @@ namespace Net.Web.Api.Sdk.Interfaces.Token
         /// <summary>
         /// Gets the token validation parameters.
         /// </summary>
-        /// <param name="validateExipration">if set to <c>true</c> [validate exipration].</param>
+        /// <param name="validateExpiration">if set to <c>true</c> [validate expiration].</param>
         /// <param name="issuers">The issuers.</param>
         /// <param name="audiences">The audiences.</param>
         /// <returns>TokenValidationParameters.</returns>
-        TokenValidationParameters GetTokenValidationParameters(bool validateExipration = false, string issuers = null, string audiences = null);
+        TokenValidationParameters GetTokenValidationParameters(bool validateExpiration = false, string issuers = null, string audiences = null);
 
         /// <summary>
         /// Gets the token payload.
         /// </summary>
-        /// <param name="context">The context.</param>
+        /// <param name="context">The HTTP context.</param>
         /// <returns>Dictionary&lt;System.String, System.String&gt;.</returns>
-        Dictionary<string, string> GetTokenPayload(HttpActionContext context);
+        Dictionary<string, string> GetTokenPayload(HttpContext context);
 
         /// <summary>
         /// Gets the identity payload.
         /// </summary>
-        /// <param name="context">The context.</param>
+        /// <param name="context">The HTTP context.</param>
         /// <returns>Dictionary&lt;System.String, System.String&gt;.</returns>
-        Dictionary<string, string> GetIdentityPayload(HttpActionContext context);
+        Dictionary<string, string> GetIdentityPayload(HttpContext context);
 
         /// <summary>
         /// Determines whether [is token revoked] [the specified token].
