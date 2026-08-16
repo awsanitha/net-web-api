@@ -1,229 +1,123 @@
-﻿using Net.Web.Api.Sdk.Documentation.Attributes;
-using Swashbuckle.Swagger;
 using System.Collections.Generic;
 using System.Linq;
-using System.Web.Http.Description;
+using System.Reflection;
+using Microsoft.OpenApi.Models;
+using Net.Web.Api.Sdk.Documentation.Attributes;
+using Swashbuckle.AspNetCore.SwaggerGen;
 
 namespace Net.Web.Api.Sdk.Documentation.Filters.Common
 {
     /// <summary>
-    /// Class SwaggerOrderingFilter.
-    /// Implements the <see cref="IDocumentFilter" />
+    /// Base document filter that sorts Swagger paths by tag and method order attributes.
     /// </summary>
-    /// <seealso cref="IDocumentFilter" />
     public abstract class SwaggerOrderingFilter : IDocumentFilter
     {
-        #region Public Virtual Methods
+        #region IDocumentFilter
 
-        /// <summary>
-        /// Applies the specified swagger document.
-        /// </summary>
-        /// <param name="swaggerDoc">The swagger document.</param>
-        /// <param name="schemaRegistry">The schema registry.</param>
-        /// <param name="apiExplorer">The API explorer.</param>
-        public virtual void Apply(SwaggerDocument swaggerDoc, SchemaRegistry schemaRegistry, IApiExplorer apiExplorer)
+        /// <inheritdoc />
+        public virtual void Apply(OpenApiDocument swaggerDoc, DocumentFilterContext context)
         {
-            OrderingApply(swaggerDoc, schemaRegistry, apiExplorer);
+            OrderingApply(swaggerDoc, context);
         }
 
         #endregion
 
-        #region Internal Static Methods
+        #region Internal Helpers
 
-        /// <summary>
-        /// Gets the invoke method.
-        /// </summary>
-        /// <param name="item">The item.</param>
-        /// <param name="tag">The tag.</param>
-        /// <returns>System.String.</returns>
-        internal static string GetInvokeMethod(PathItem item, out string tag)
+        internal static string GetInvokeMethod(OpenApiPathItem item, out string tag)
         {
             tag = string.Empty;
 
-            if (item.get != null)
+            if (item.Operations.TryGetValue(OperationType.Get, out var op))
             {
-                tag = item.get.tags != null && item.get.tags.Count == 1 ? item.get.tags[0] : string.Empty;
-
+                tag = op.Tags?.FirstOrDefault()?.Name ?? string.Empty;
                 return "GET";
             }
-
-            if (item.put != null)
+            if (item.Operations.TryGetValue(OperationType.Post, out op))
             {
-                tag = item.put.tags != null && item.put.tags.Count == 1 ? item.put.tags[0] : string.Empty;
-
-                return "PUT";
-            }
-
-            if (item.post != null)
-            {
-                tag = item.post.tags != null && item.post.tags.Count == 1 ? item.post.tags[0] : string.Empty;
-
+                tag = op.Tags?.FirstOrDefault()?.Name ?? string.Empty;
                 return "POST";
             }
-
-            if (item.delete != null)
+            if (item.Operations.TryGetValue(OperationType.Put, out op))
             {
-                tag = item.delete.tags != null && item.delete.tags.Count == 1 ? item.delete.tags[0] : string.Empty;
-
+                tag = op.Tags?.FirstOrDefault()?.Name ?? string.Empty;
+                return "PUT";
+            }
+            if (item.Operations.TryGetValue(OperationType.Delete, out op))
+            {
+                tag = op.Tags?.FirstOrDefault()?.Name ?? string.Empty;
                 return "DELETE";
             }
-
-            if (item.options != null)
+            if (item.Operations.TryGetValue(OperationType.Patch, out op))
             {
-                tag = item.options.tags != null && item.options.tags.Count == 1 ? item.options.tags[0] : string.Empty;
-
-                return "OPTIONS";
+                tag = op.Tags?.FirstOrDefault()?.Name ?? string.Empty;
+                return "PATCH";
             }
 
-            if (item.head != null)
-            {
-                tag = item.head.tags != null && item.head.tags.Count == 1 ? item.head.tags[0] : string.Empty;
-
-                return "HEAD";
-            }
-
-            if (item.patch == null)
-            {
-                return string.Empty;
-            }
-
-            tag = item.patch.tags != null && item.patch.tags.Count == 1 ? item.patch.tags[0] : string.Empty;
-
-            return "PATCH";
+            return string.Empty;
         }
 
-        /// <summary>
-        /// Orderings the apply.
-        /// </summary>
-        /// <param name="swaggerDoc">The swagger document.</param>
-        /// <param name="schemaRegistry">The schema registry.</param>
-        /// <param name="apiExplorer">The API explorer.</param>
-        internal static void OrderingApply(SwaggerDocument swaggerDoc, SchemaRegistry schemaRegistry, IApiExplorer apiExplorer)
+        internal static void OrderingApply(OpenApiDocument swaggerDoc, DocumentFilterContext context)
         {
-            var paths = swaggerDoc.paths;
-
-            if (paths == null || !paths.Any())
-            {
+            if (swaggerDoc.Paths == null || !swaggerDoc.Paths.Any())
                 return;
-            }
 
             var tagGroups = new Dictionary<string, IList<ApiOrder>>();
 
-            foreach (var path in paths)
+            foreach (var path in swaggerDoc.Paths)
             {
-                var key = GetInvokeMethod(path.Value, out var tag);
-                var apiKey = $"{key}{path.Key.TrimStart('/')}";
-                var apiFound = apiExplorer.ApiDescriptions.FirstOrDefault(c => c.ID.StartsWith(apiKey));
+                GetInvokeMethod(path.Value, out var tag);
+                var apiDesc = context.ApiDescriptions
+                    .FirstOrDefault(a => ("/" + a.RelativePath?.TrimStart('/'))
+                        .Equals(path.Key, System.StringComparison.OrdinalIgnoreCase));
 
                 if (!tagGroups.ContainsKey(tag))
-                {
-                    tagGroups.Add(tag, new List<ApiOrder>());
-                }
+                    tagGroups[tag] = new List<ApiOrder>();
 
-                var item = new ApiOrder
+                tagGroups[tag].Add(new ApiOrder
                 {
-                    Order = GetApiOrder(apiFound),
+                    Order = GetApiOrder(apiDesc),
                     PathKey = path.Key,
                     PathValue = path.Value,
                     OperationName = tag
-                };
+                });
 
-                tagGroups[tag].Add(item);
-                tagGroups[tag] = tagGroups[tag].OrderBy(c => c.Order).ToList();
+                tagGroups[tag] = tagGroups[tag].OrderBy(o => o.Order).ToList();
             }
 
-            var list = new List<ApiOrder>();
+            var list = tagGroups.SelectMany(g => g.Value).ToList();
+            var sorted = list.OrderBy(a => a.OperationName)
+                             .ToDictionary(a => a.PathKey, a => a.PathValue);
 
-            foreach (var tagGroup in tagGroups)
-            {
-                list.AddRange(tagGroup.Value);
-            }
-
-            swaggerDoc.paths = list.OrderBy(c => c.OperationName).ToDictionary(c => c.PathKey, c => c.PathValue);
+            swaggerDoc.Paths = new OpenApiPaths();
+            foreach (var kv in sorted)
+                swaggerDoc.Paths.Add(kv.Key, kv.Value);
         }
 
-        /// <summary>
-        /// Gets the API order.
-        /// </summary>
-        /// <param name="apiDescription">The API description.</param>
-        /// <returns>System.Int32.</returns>
-        internal static int GetApiOrder(ApiDescription apiDescription)
+        internal static int GetApiOrder(Microsoft.AspNetCore.Mvc.ApiExplorer.ApiDescription apiDescription)
         {
-            var apiDescriptor = apiDescription.ActionDescriptor;
-            var controllerDescriptor = apiDescriptor?.ControllerDescriptor;
+            if (apiDescription == null) return -1;
 
-            if (controllerDescriptor == null)
-            {
-                return -1;
-            }
+            var endpoint = apiDescription.ActionDescriptor?.EndpointMetadata;
+            if (endpoint == null) return -1;
 
-            var controllerType = controllerDescriptor.ControllerType;
+            var attr = endpoint
+                .OfType<SwaggerMethodOrderAttribute>()
+                .FirstOrDefault();
 
-            if (controllerType == null)
-            {
-                return -1;
-            }
-
-            var actionName = apiDescriptor.ActionName;
-
-            if (string.IsNullOrEmpty(actionName))
-            {
-                return -1;
-            }
-
-            var actionMethod = controllerType.GetMethod(actionName);
-
-            if (actionMethod == null)
-            {
-                return -1;
-            }
-
-            var attr = actionMethod.GetCustomAttributes(typeof(SwaggerMethodOrderAttribute), false).FirstOrDefault();
-
-            if (attr == null)
-            {
-                return -1;
-            }
-
-            return ((SwaggerMethodOrderAttribute)attr).Order;
+            return attr?.Order ?? -1;
         }
 
         #endregion
 
         #region Internal Class
 
-        /// <summary>
-        /// Class ApiOrder.
-        /// </summary>
         internal class ApiOrder
         {
-            #region Internal Properties
-
-            /// <summary>
-            /// Gets or sets the order.
-            /// </summary>
-            /// <value>The order.</value>
             internal int Order { get; set; }
-
-            /// <summary>
-            /// Gets or sets the path key.
-            /// </summary>
-            /// <value>The path key.</value>
             internal string PathKey { get; set; }
-
-            /// <summary>
-            /// Gets or sets the path value.
-            /// </summary>
-            /// <value>The path value.</value>
-            internal PathItem PathValue { get; set; }
-
-            /// <summary>
-            /// Gets or sets the name of the operation.
-            /// </summary>
-            /// <value>The name of the operation.</value>
+            internal OpenApiPathItem PathValue { get; set; }
             internal string OperationName { get; set; }
-
-            #endregion
         }
 
         #endregion

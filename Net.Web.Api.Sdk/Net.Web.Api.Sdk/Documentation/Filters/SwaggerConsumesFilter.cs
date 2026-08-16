@@ -1,39 +1,39 @@
-﻿using Net.Web.Api.Sdk.Documentation.Attributes;
-using Swashbuckle.Swagger;
 using System.Linq;
-using System.Web.Http.Description;
+using Microsoft.OpenApi.Models;
+using Net.Web.Api.Sdk.Documentation.Attributes;
+using Swashbuckle.AspNetCore.SwaggerGen;
 
 namespace Net.Web.Api.Sdk.Documentation.Filters
 {
-    /// <inheritdoc />
     /// <summary>
-    /// Class SwaggerConsumesFilter.
+    /// Operation filter that overrides the <c>consumes</c> (request media type) list using
+    /// <see cref="SwaggerConsumesAttribute"/>.
     /// </summary>
     public class SwaggerConsumesFilter : IOperationFilter
     {
-        #region IOperationFilter Implementations
-
         /// <inheritdoc />
-        /// <summary>
-        /// Applies the specified operation.
-        /// </summary>
-        /// <param name="operation">The operation.</param>
-        /// <param name="schemaRegistry">The schema registry.</param>
-        /// <param name="apiDescription">The API description.</param>
-        /// <exception cref="T:System.NotImplementedException"></exception>
-        public void Apply(Operation operation, SchemaRegistry schemaRegistry, ApiDescription apiDescription)
+        public void Apply(OpenApiOperation operation, OperationFilterContext context)
         {
-            var attribute = apiDescription.GetControllerAndActionAttributes<SwaggerConsumesAttribute>().SingleOrDefault();
+            var attribute = context.MethodInfo
+                ?.GetCustomAttributes(typeof(SwaggerConsumesAttribute), true)
+                .OfType<SwaggerConsumesAttribute>()
+                .SingleOrDefault();
 
-            if (attribute == null)
-            {
+            if (attribute == null) return;
+
+            if (operation.RequestBody == null)
                 return;
+
+            var existingSchema = operation.RequestBody.Content.Values.FirstOrDefault()?.Schema;
+            operation.RequestBody.Content.Clear();
+
+            foreach (var ct in attribute.ContentTypes)
+            {
+                operation.RequestBody.Content[ct] = new OpenApiMediaType
+                {
+                    Schema = existingSchema
+                };
             }
-
-            operation.consumes.Clear();
-            operation.consumes = attribute.ContentTypes.ToList();
         }
-
-        #endregion
     }
 }

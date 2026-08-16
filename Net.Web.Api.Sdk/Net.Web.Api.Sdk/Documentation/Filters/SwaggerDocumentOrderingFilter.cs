@@ -1,11 +1,9 @@
-﻿using Net.Web.Api.Sdk.Documentation.Filters.Common;
+using Net.Web.Api.Sdk.Documentation.Filters.Common;
 
-namespace Web.Api.Toolkit.Filters.Swagger
+namespace Net.Web.Api.Sdk.Documentation.Filters
 {
     /// <summary>
-    /// Class SwaggerDocumentOrderingFilter.
-    /// Implements the <see cref="SwaggerOrderingFilter" />
+    /// Document filter that orders Swagger paths and methods alphabetically by tag.
     /// </summary>
-    /// <seealso cref="SwaggerOrderingFilter" />
-    public class SwaggerDocumentOrderingFilter : SwaggerOrderingFilter {}
+    public class SwaggerDocumentOrderingFilter : SwaggerOrderingFilter { }
 }
