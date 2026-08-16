@@ -1,79 +1,40 @@
-﻿using Newtonsoft.Json.Linq;
 using System.Linq;
 using System.Net;
-using System.Net.Http;
-using System.Net.Http.Formatting;
-using System.Web.Http.Controllers;
-using System.Web.Http.Filters;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
+using Newtonsoft.Json.Linq;
 
 namespace Net.Web.Api.Sdk.Common.Validations
 {
     /// <summary>
-    /// Class ParameterValidationActionFilterAttribute.
-    /// Implements the <see cref="ActionFilterAttribute" />
+    /// Action filter that returns a 400 Bad Request with a JSON array of error messages when model
+    /// state is invalid.  Register globally via <c>AddControllers(o =&gt; o.Filters.Add(...))</c>
+    /// or the SDK's <c>AddSdkWebApi</c> extension.
     /// </summary>
-    /// <seealso cref="ActionFilterAttribute" />
     public class ParameterValidationActionFilterAttribute : ActionFilterAttribute
     {
-        #region Private Properties
-
-        /// <summary>
-        /// The formatter
-        /// </summary>
-        private readonly JsonMediaTypeFormatter _formatter;
-
-        #endregion
-
-        #region Constructors
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="ParameterValidationActionFilterAttribute"/> class.
-        /// </summary>
-        /// <param name="formatter">The formatter.</param>
-        public ParameterValidationActionFilterAttribute(JsonMediaTypeFormatter formatter)
-        {
-            _formatter = formatter;
-        }
-
-        #endregion
-
-        #region ActionFilterAttribute Overrides
-
         /// <inheritdoc />
-        /// <summary>
-        /// Occurs before the action method is invoked.
-        /// </summary>
-        /// <param name="actionContext">The action context.</param>
-        public override void OnActionExecuting(HttpActionContext actionContext)
+        public override void OnActionExecuting(ActionExecutingContext context)
         {
-            if (actionContext.ModelState.IsValid == false)
+            if (!context.ModelState.IsValid)
             {
-                actionContext.Response = actionContext.Request.CreateResponse(HttpStatusCode.BadRequest,
-                    CreateValidationErrorContent(actionContext), _formatter);
+                context.Result = new ObjectResult(CreateValidationErrorContent(context))
+                {
+                    StatusCode = (int)HttpStatusCode.BadRequest
+                };
             }
         }
 
-        #endregion
-
-        #region Private Methods
-
-        /// <summary>
-        /// Creates the content of the validation error.
-        /// </summary>
-        /// <param name="actionContext">The action context.</param>
-        /// <returns>JArray.</returns>
-        private static JArray CreateValidationErrorContent(HttpActionContext actionContext)
+        private static JArray CreateValidationErrorContent(ActionExecutingContext context)
         {
-            var result = (
-                from value 
-                in actionContext.ModelState.Values 
-                from message 
-                in value.Errors 
-                select message.ErrorMessage).Where(c=>!string.IsNullOrEmpty(c));
+            var errors = context.ModelState.Values
+                .SelectMany(v => v.Errors)
+                .Select(e => e.ErrorMessage)
+                .Where(m => !string.IsNullOrEmpty(m))
+                .Distinct()
+                .ToList();
 
-            return JArray.FromObject(result.Distinct().ToList());
+            return JArray.FromObject(errors);
         }
-
-        #endregion
     }
 }

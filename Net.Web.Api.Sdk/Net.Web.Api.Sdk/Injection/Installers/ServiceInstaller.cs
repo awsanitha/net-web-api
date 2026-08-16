@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -9,28 +9,27 @@ using Net.Web.Api.Sdk.Injection.Attributes;
 
 namespace Net.Web.Api.Sdk.Injection.Installers
 {
-    /// <inheritdoc />
     /// <summary>
-    /// Class ServiceInstaller.
+    /// Castle.Windsor installer that scans all loaded assemblies and registers any class whose
+    /// interface is decorated with <see cref="InjectInterfaceServiceAttribute"/>.
     /// </summary>
-    /// <seealso cref="T:Castle.MicroKernel.Registration.IWindsorInstaller" />
     public class ServiceInstaller : IWindsorInstaller
     {
-        #region Private Properties
+        #region Private Fields
 
-        /// <summary>
-        /// The assembly name prefix
-        /// </summary>
-        private string _assemblyNamePrefix;
+        private readonly string _assemblyNamePrefix;
 
         #endregion
 
         #region Constructors
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="ServiceInstaller"/> class.
+        /// Initializes a new instance of <see cref="ServiceInstaller"/>.
         /// </summary>
-        /// <param name="assemblyNamePrefix">The assembly name prefix.</param>
+        /// <param name="assemblyNamePrefix">
+        /// Optional assembly-name prefix filter. When supplied, only classes whose assembly name
+        /// starts with this value are considered for registration.
+        /// </param>
         public ServiceInstaller(string assemblyNamePrefix = null)
         {
             _assemblyNamePrefix = assemblyNamePrefix;
@@ -38,32 +37,28 @@ namespace Net.Web.Api.Sdk.Injection.Installers
 
         #endregion
 
-        #region IWindsorInstaller Implementations
+        #region IWindsorInstaller
 
         /// <inheritdoc />
-        /// <summary>
-        /// Performs the installation in the <see cref="T:Castle.Windsor.IWindsorContainer" />.
-        /// </summary>
-        /// <param name="container">The container.</param>
-        /// <param name="store">The configuration store.</param>
         public void Install(IWindsorContainer container, IConfigurationStore store)
         {
-            var assemblyDescriptor = Classes.FromAssemblyInDirectory(new AssemblyFilter(AppDomain.CurrentDomain.RelativeSearchPath));
+            // Use assemblies already loaded in the current AppDomain (works reliably on .NET 10).
+            var assemblies = AppDomain.CurrentDomain.GetAssemblies()
+                .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
+                .ToList();
 
-            if (assemblyDescriptor == null)
+            var registrationList = GetRegistrationList(assemblies);
+
+            foreach (var item in registrationList)
             {
-                return;
-            }
+                if (container.Kernel.HasComponent(item.Key))
+                    continue;
 
-            var assemblyList = GetAssemblyList(assemblyDescriptor);
-            var registrationList = GetRegistrationList(assemblyList);
-
-            foreach(var item in registrationList)
-            {
-                container.Register(Component.For(item.Key, item.Value)
-                    .ImplementedBy(item.Value)
-                    .Named(item.Key.FullName)
-                    .LifestyleSingleton());
+                container.Register(
+                    Component.For(item.Key, item.Value)
+                        .ImplementedBy(item.Value)
+                        .Named(item.Key.FullName)
+                        .LifestyleSingleton());
             }
         }
 
@@ -71,83 +66,64 @@ namespace Net.Web.Api.Sdk.Injection.Installers
 
         #region Private Methods
 
-        /// <summary>
-        /// Gets the interfaces.
-        /// </summary>
-        /// <param name="class">The class.</param>
-        /// <returns>IList&lt;Type&gt;.</returns>
         private static IList<Type> GetInterfaces(Type @class)
         {
-            return @class.GetInterfaces().Where(@interface => @interface.GetCustomAttribute(typeof(InjectInterfaceServiceAttribute), false) != null).ToList();
+            return @class.GetInterfaces()
+                .Where(i => i.GetCustomAttribute(typeof(InjectInterfaceServiceAttribute), false) != null)
+                .ToList();
         }
 
-        /// <summary>
-        /// Gets the registration list.
-        /// </summary>
-        /// <param name="assemblies">The assemblies.</param>
-        /// <returns>Dictionary&lt;Type, Type&gt;.</returns>
         private Dictionary<Type, Type> GetRegistrationList(IEnumerable<Assembly> assemblies)
         {
-            var directList = new List<KeyValuePair<Type, Type>>();
-            var inheritedList = new List<KeyValuePair<Type, Type>>();
             var classes = new List<Type>();
 
             foreach (var assembly in assemblies)
             {
-                classes.AddRange(
-                    assembly.GetTypes()
-                        .Where(
-                            @object => @object.IsClass &&
-                            !@object.IsAbstract &&
-                            (
-                                string.IsNullOrEmpty(_assemblyNamePrefix) ||
-                                @object.Assembly.FullName.StartsWith(_assemblyNamePrefix,
-                                StringComparison.CurrentCultureIgnoreCase)
-                            )
-                        ).ToList()
-                );
+                try
+                {
+                    classes.AddRange(
+                        assembly.GetTypes()
+                            .Where(t => t.IsClass && !t.IsAbstract &&
+                                (string.IsNullOrEmpty(_assemblyNamePrefix) ||
+                                 t.Assembly.FullName?.StartsWith(_assemblyNamePrefix, StringComparison.OrdinalIgnoreCase) == true)));
+                }
+                catch
+                {
+                    // Skip assemblies that cannot be reflected
+                }
             }
 
             var registrationList = new List<KeyValuePair<Type, Type>>();
 
             foreach (var @class in classes)
             {
-                if (!string.IsNullOrEmpty(_assemblyNamePrefix) && !@class.Assembly.FullName.StartsWith(_assemblyNamePrefix, 
-                    StringComparison.CurrentCultureIgnoreCase))
-                {
+                if (!string.IsNullOrEmpty(_assemblyNamePrefix) &&
+                    @class.Assembly.FullName?.StartsWith(_assemblyNamePrefix, StringComparison.OrdinalIgnoreCase) != true)
                     continue;
-                }
 
                 var interfaces = GetInterfaces(@class);
 
-                if(interfaces.Count == 0 || interfaces.Count > 2)
-                {
+                if (interfaces.Count == 0 || interfaces.Count > 2)
                     continue;
-                }
 
                 Type @interface = null;
 
-                if(interfaces.Count == 2)
+                if (interfaces.Count == 2)
                 {
-                    var @interface1 = interfaces[0];
-                    var @interface2 = interfaces[1];
+                    var i1 = interfaces[0];
+                    var i2 = interfaces[1];
 
-                    if(@interface1.GetInterfaces().FirstOrDefault(c=>c.FullName.Equals(@interface2.FullName)) != null) {
-                        @interface = @interface1;
-                    } else if (@interface2.GetInterfaces().FirstOrDefault(c => c.FullName.Equals(@interface1.FullName)) != null)
-                    {
-                        @interface = @interface2;
-                    }
+                    if (i1.GetInterfaces().Any(c => c.FullName == i2.FullName))
+                        @interface = i1;
+                    else if (i2.GetInterfaces().Any(c => c.FullName == i1.FullName))
+                        @interface = i2;
                 }
                 else
                 {
                     @interface = interfaces[0];
                 }
 
-                if(@interface == null)
-                {
-                    continue;
-                }
+                if (@interface == null) continue;
 
                 registrationList.Add(new KeyValuePair<Type, Type>(@interface, @class));
             }
@@ -156,58 +132,27 @@ namespace Net.Web.Api.Sdk.Injection.Installers
 
             var result = new Dictionary<Type, Type>();
 
-            foreach(var item in registrationList)
+            foreach (var item in registrationList)
             {
-                if(!result.ContainsKey(item.Key))
+                if (!result.ContainsKey(item.Key))
                 {
                     result.Add(item.Key, item.Value);
-
                     continue;
                 }
 
-                var @existingClass = result[item.Key];
-                var @currentClass = item.Value;
-                var isExistingClassCustom = IsCustomService(@existingClass);
-                var isCurrentClassCustom = IsCustomService(@currentClass);
+                var existing = result[item.Key];
+                var current = item.Value;
 
-                if(!isExistingClassCustom && isCurrentClassCustom)
-                {
-                    result[item.Key] = @currentClass;
-                }
+                if (!IsCustomService(existing) && IsCustomService(current))
+                    result[item.Key] = current;
             }
 
             return result;
         }
 
-        /// <summary>
-        /// Determines whether [is custom service] [the specified class].
-        /// </summary>
-        /// <param name="class">The class.</param>
-        /// <returns><c>true</c> if [is custom service] [the specified class]; otherwise, <c>false</c>.</returns>
         private static bool IsCustomService(Type @class)
         {
-            return @class.GetCustomAttributes(typeof(InjectServiceCustomAttribute), false).FirstOrDefault() != null;
-        }
-
-
-        /// <summary>
-        /// Gets the assembly list.
-        /// </summary>
-        /// <param name="assemblyDescriptor">The assembly descriptor.</param>
-        /// <returns>IList&lt;Assembly&gt;.</returns>
-        private static IEnumerable<Assembly> GetAssemblyList(FromAssemblyDescriptor assemblyDescriptor)
-        {
-            var type = assemblyDescriptor.GetType();
-            var assemblyField = type.GetField("assemblies", BindingFlags.NonPublic | BindingFlags.Instance);
-
-            if (assemblyField == null)
-            {
-                return null;
-            }
-
-            var enumeration = (IEnumerable<Assembly>)assemblyField.GetValue(assemblyDescriptor);
-
-            return enumeration?.ToList();
+            return @class.GetCustomAttributes(typeof(InjectServiceCustomAttribute), false).Any();
         }
 
         #endregion

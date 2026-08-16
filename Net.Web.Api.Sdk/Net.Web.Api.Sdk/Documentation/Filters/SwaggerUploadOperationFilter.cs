@@ -1,78 +1,59 @@
-﻿using System.Linq;
-using System.Web.Http.Description;
+using System.Linq;
+using System.Reflection;
+using Microsoft.OpenApi.Models;
 using Net.Web.Api.Sdk.Documentation.Attributes;
-using Swashbuckle.Swagger;
+using Swashbuckle.AspNetCore.SwaggerGen;
 
 namespace Net.Web.Api.Sdk.Documentation.Filters
 {
-    /// <inheritdoc />
     /// <summary>
-    /// Class SwaggerUploadOperationFilter.
+    /// Operation filter that converts a multipart upload action into the proper Swagger form-data
+    /// representation, driven by <see cref="SwaggerUploadOperationAttribute"/>.
     /// </summary>
-    /// <seealso cref="T:Web.Api.Toolkit.Swashbuckle.Swagger.IOperationFilter" />
     public class SwaggerUploadOperationFilter : IOperationFilter
     {
-        #region IOperationFilter Implementations
-
         /// <inheritdoc />
-        /// <summary>
-        /// Applies the specified operation.
-        /// </summary>
-        /// <param name="operation">The operation.</param>
-        /// <param name="schemaRegistry">The schema registry.</param>
-        /// <param name="apiDescription">The API description.</param>
-        public void Apply(Operation operation, SchemaRegistry schemaRegistry, ApiDescription apiDescription)
+        public void Apply(OpenApiOperation operation, OperationFilterContext context)
         {
-            var upload = apiDescription.ActionDescriptor.GetCustomAttributes<SwaggerUploadOperationAttribute>().FirstOrDefault();
+            var upload = context.MethodInfo
+                ?.GetCustomAttributes(typeof(SwaggerUploadOperationAttribute), true)
+                .OfType<SwaggerUploadOperationAttribute>()
+                .FirstOrDefault();
 
-            if (upload == null)
+            if (upload == null) return;
+
+            // Build a multipart/form-data request body from the model type's properties.
+            var schema = new OpenApiSchema
             {
-                return;
+                Type = "object",
+                Properties = new System.Collections.Generic.Dictionary<string, OpenApiSchema>()
+            };
+
+            foreach (var prop in upload.ParameterType.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+            {
+                var propSchema = IsFileProperty(prop)
+                    ? new OpenApiSchema { Type = "string", Format = "binary" }
+                    : new OpenApiSchema { Type = "string" };
+
+                schema.Properties[prop.Name] = propSchema;
             }
 
-            if (!schemaRegistry.Definitions.TryGetValue(upload.ParameterType.Name, out var schema))
+            operation.RequestBody = new OpenApiRequestBody
             {
-                return;
-            }
-
-            operation.parameters.Clear();
-
-            foreach (var property in schema.properties)
-            {
-                var name = property.Key;
-                var definition = property.Value;
-
-                if (!string.IsNullOrEmpty(definition.@ref) && definition.@ref.Contains("HttpFile"))
+                Required = true,
+                Content =
                 {
-                    operation.parameters.Add(new Parameter
-                    {
-                        name = name,
-                        @in = "formData",
-                        description = definition.description,
-                        @default = definition.@default,
-                        type = "file",
-                        required = schema.required.Contains(name)
-                    });
+                    ["multipart/form-data"] = new OpenApiMediaType { Schema = schema }
                 }
-                else
-                {
-                    operation.parameters.Add(new Parameter
-                    {
-                        name = name,
-                        @in = "formData",
-                        description = definition.description,
-                        @default = definition.@default,
-                        type = definition.type,
-                        required = schema.required.Contains(name),
-                        maxLength = definition.maxLength,
-                        minLength = definition.minLength
-                    });
-                }
-            }
+            };
 
-            operation.consumes.Add("multipart/form-data");
+            // Clear any auto-generated parameters so they don't conflict
+            operation.Parameters.Clear();
         }
 
-        #endregion
+        private static bool IsFileProperty(PropertyInfo prop)
+        {
+            return typeof(Microsoft.AspNetCore.Http.IFormFile).IsAssignableFrom(prop.PropertyType);
+        }
     }
 }

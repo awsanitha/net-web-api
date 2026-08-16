@@ -1,26 +1,18 @@
-﻿namespace Net.Web.Api.Sdk.Common.Constants
+namespace Net.Web.Api.Sdk.Common.Constants
 {
     /// <summary>
-    /// Class RouteConstants.
+    /// Routing constants shared across SDK controllers.
     /// </summary>
     public static class RouteConstants
     {
-        #region Public Constants
-
         /// <summary>
-        /// The route prefix version
+        /// Route template for versioned endpoints: <c>api/v{version:apiVersion}</c>.
         /// </summary>
-        public const string ROUTE_PREFIX_VERSION = "api/v{api-version:" + API_VERSION_FIELD + "}";
-
-        #endregion
-
-        #region Internal Constants
+        public const string ROUTE_PREFIX_VERSION = "api/v{version:apiVersion}";
 
         /// <summary>
-        /// The API version field
+        /// The URL segment parameter name used by Asp.Versioning.
         /// </summary>
         internal const string API_VERSION_FIELD = "apiVersion";
-
-        #endregion
     }
 }

@@ -1,39 +1,41 @@
-﻿using Net.Web.Api.Sdk.Documentation.Attributes;
-using Swashbuckle.Swagger;
 using System.Linq;
-using System.Web.Http.Description;
+using Microsoft.OpenApi.Models;
+using Net.Web.Api.Sdk.Documentation.Attributes;
+using Swashbuckle.AspNetCore.SwaggerGen;
 
 namespace Net.Web.Api.Sdk.Documentation.Filters
 {
-    /// <inheritdoc />
     /// <summary>
-    /// Class SwaggerProducesFilter.
+    /// Operation filter that overrides the <c>produces</c> (response media type) list using
+    /// <see cref="SwaggerProducesAttribute"/>.
     /// </summary>
     public class SwaggerProducesFilter : IOperationFilter
     {
-        #region IOperationFilter Implementations
-
         /// <inheritdoc />
-        /// <summary>
-        /// Applies the specified operation.
-        /// </summary>
-        /// <param name="operation">The operation.</param>
-        /// <param name="schemaRegistry">The schema registry.</param>
-        /// <param name="apiDescription">The API description.</param>
-        /// <exception cref="T:System.NotImplementedException"></exception>
-        public void Apply(Operation operation, SchemaRegistry schemaRegistry, ApiDescription apiDescription)
+        public void Apply(OpenApiOperation operation, OperationFilterContext context)
         {
-            var attribute = apiDescription.GetControllerAndActionAttributes<SwaggerProducesAttribute>().SingleOrDefault();
+            var attribute = context.MethodInfo
+                ?.GetCustomAttributes(typeof(SwaggerProducesAttribute), true)
+                .OfType<SwaggerProducesAttribute>()
+                .SingleOrDefault();
 
-            if (attribute == null)
+            if (attribute == null) return;
+
+            // Re-build response media types for each response entry
+            foreach (var response in operation.Responses.Values)
             {
-                return;
+                var existingSchema = response.Content.Values.FirstOrDefault()?.Schema;
+
+                response.Content.Clear();
+
+                foreach (var ct in attribute.ContentTypes)
+                {
+                    response.Content[ct] = new OpenApiMediaType
+                    {
+                        Schema = existingSchema
+                    };
+                }
             }
-
-            operation.produces.Clear();
-            operation.produces = attribute.ContentTypes.ToList();
         }
-
-        #endregion
     }
 }
