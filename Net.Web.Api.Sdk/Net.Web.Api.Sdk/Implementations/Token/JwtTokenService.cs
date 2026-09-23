@@ -7,8 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Claims;
 using System.Text;
-using System.Web;
-using System.Web.Http.Controllers;
+using Microsoft.Extensions.Hosting;
 using LiteDB;
 using Microsoft.IdentityModel.Tokens;
 using Net.Web.Api.Sdk.Configurations.Token;
@@ -26,11 +25,6 @@ namespace Net.Web.Api.Sdk.Implementations.Token
     public class JwtTokenService : IJwtTokenService
     {
         #region Constants
-
-        /// <summary>
-        /// The root path
-        /// </summary>
-        private const string ROOT_PATH = @"\";
 
         /// <summary>
         /// The token config file pattern
@@ -62,6 +56,11 @@ namespace Net.Web.Api.Sdk.Implementations.Token
         /// </summary>
         private string _tokenDataBase;
 
+        /// <summary>
+        /// The host environment
+        /// </summary>
+        private readonly IHostEnvironment _hostEnvironment;
+
         #endregion
 
         #region Constructors
@@ -69,8 +68,11 @@ namespace Net.Web.Api.Sdk.Implementations.Token
         /// <summary>
         /// Initializes a new instance of the <see cref="JwtTokenService"/> class.
         /// </summary>
-        public JwtTokenService()
+        /// <param name="hostEnvironment">The host environment.</param>
+        public JwtTokenService(IHostEnvironment hostEnvironment)
         {
+            _hostEnvironment = hostEnvironment;
+
             LoadAllTokens();
             SetupTokenDatabase();
         }
@@ -168,18 +170,18 @@ namespace Net.Web.Api.Sdk.Implementations.Token
         /// <summary>
         /// Gets the token payload.
         /// </summary>
-        /// <param name="context">The context.</param>
+        /// <param name="httpContext">The HTTP context.</param>
         /// <returns>Dictionary&lt;System.String, System.String&gt;.</returns>
-        public virtual Dictionary<string, string> GetTokenPayload(HttpActionContext context)
+        public virtual Dictionary<string, string> GetTokenPayload(Microsoft.AspNetCore.Http.HttpContext httpContext)
         {
-            var identity = context.RequestContext.Principal.Identity;
+            var identity = httpContext.User?.Identity;
 
             if (identity == null || !identity.IsAuthenticated)
             {
                 return new Dictionary<string, string>();
             }
 
-            context.GetToken(out var securityToken);
+            httpContext.GetToken(out var securityToken);
 
             return securityToken?.Claims?.ToClaimDictionary() ?? new Dictionary<string, string>();
         }
@@ -188,11 +190,10 @@ namespace Net.Web.Api.Sdk.Implementations.Token
         /// <summary>
         /// Gets the identity payload.
         /// </summary>
-        /// <param name="context">The context.</param>
+        /// <param name="principal">The principal.</param>
         /// <returns>Dictionary&lt;System.String, System.String&gt;.</returns>
-        public virtual Dictionary<string, string> GetIdentityPayload(HttpActionContext context)
+        public virtual Dictionary<string, string> GetIdentityPayload(ClaimsPrincipal principal)
         {
-            var principal = context.RequestContext.Principal;
             var identity = principal?.Identity;
 
             if (identity == null || !identity.IsAuthenticated)
@@ -300,7 +301,7 @@ namespace Net.Web.Api.Sdk.Implementations.Token
                 var tokens = db.GetCollection<JwtTokenUsedOrRevoked>(TOKEN_DATA_COLLECTION);
                 var now = DateTime.UtcNow;
 
-                count = tokens.Delete(c => c.ExpirationDate.CompareTo(now) > 0);
+                count = tokens.DeleteMany(c => c.ExpirationDate.CompareTo(now) > 0);
             }
 
             return count;
@@ -467,8 +468,9 @@ namespace Net.Web.Api.Sdk.Implementations.Token
         /// Loads the token list.
         /// </summary>
         /// <param name="tokenConfigurationSection">The token configuration section.</param>
+        /// <param name="rootPath">The root path.</param>
         /// <returns>Dictionary&lt;System.String, ApiTokenModel&gt;.</returns>
-        private static Dictionary<string, JwtTokenModel> LoadTokenList(TokenConfigurationSection tokenConfigurationSection)
+        private static Dictionary<string, JwtTokenModel> LoadTokenList(TokenConfigurationSection tokenConfigurationSection, string rootPath)
         {
             var tokens = new Dictionary<string, JwtTokenModel>();
 
@@ -482,7 +484,7 @@ namespace Net.Web.Api.Sdk.Implementations.Token
                     continue;
                 }
 
-                tokens.Add(tokenName, new JwtTokenModel(tokenName, definition));
+                tokens.Add(tokenName, new JwtTokenModel(tokenName, definition, rootPath));
             }
 
             return tokens;
@@ -495,7 +497,7 @@ namespace Net.Web.Api.Sdk.Implementations.Token
         {
             Tokens = new Dictionary<string, JwtTokenModel>();
 
-            var rootPath = HttpContext.Current.Server.MapPath(ROOT_PATH);
+            var rootPath = _hostEnvironment.ContentRootPath;
             var configurationFileList = Directory.GetFiles(rootPath, TOKEN_CONFIG_FILE_PATTERN, SearchOption.AllDirectories);
 
             if (!configurationFileList.Any())
@@ -508,7 +510,7 @@ namespace Net.Web.Api.Sdk.Implementations.Token
                 var configMap = new ExeConfigurationFileMap { ExeConfigFilename = configurationFile };
                 var config = ConfigurationManager.OpenMappedExeConfiguration(configMap, ConfigurationUserLevel.None);
                 var tokenSection = (TokenConfigurationSection) config.GetSection(TokenConfigurationSection.SECTION_NAME);
-                var tokenList = LoadTokenList(tokenSection);
+                var tokenList = LoadTokenList(tokenSection, rootPath);
 
                 foreach (var token in tokenList)
                 {
@@ -529,7 +531,7 @@ namespace Net.Web.Api.Sdk.Implementations.Token
         /// </summary>
         private void SetupTokenDatabase()
         {
-            var rootPath = HttpContext.Current.Server.MapPath(ROOT_PATH);
+            var rootPath = _hostEnvironment.ContentRootPath;
             var dataBasePath = Path.Combine(rootPath, "db");
 
             if(!Directory.Exists(dataBasePath))
