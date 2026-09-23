@@ -5,7 +5,6 @@ using System.Linq;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Web;
 using Microsoft.IdentityModel.Tokens;
 using Net.Web.Api.Sdk.Configurations.Token;
 using Newtonsoft.Json;
@@ -323,13 +322,14 @@ namespace Net.Web.Api.Sdk.Models.Token
         /// </summary>
         /// <param name="tokenName">Name of the token.</param>
         /// <param name="definition">The definition.</param>
+        /// <param name="rootPath">The root path used to search for certificate files.</param>
         /// <exception cref="ArgumentException"></exception>
         /// <exception cref="ArgumentException"></exception>
         /// <exception cref="ArgumentNullException">ValidatingCertificate</exception>
         /// <exception cref="FileNotFoundException"></exception>
         /// <exception cref="FileNotFoundException"></exception>
         [SuppressMessage("ReSharper", "NotResolvedInText")]
-        public JwtTokenModel(string tokenName, TokenDefinitionElement definition)
+        public JwtTokenModel(string tokenName, TokenDefinitionElement definition, string rootPath)
         {
             TokenName = tokenName.ToUpper();
 
@@ -377,7 +377,7 @@ namespace Net.Web.Api.Sdk.Models.Token
 
             if (!string.IsNullOrEmpty(definition.Signature.ValidatingCertificate))
             {
-                var validationCertificateFile = SearchCertificate(definition.Signature.ValidatingCertificate);
+                var validationCertificateFile = SearchCertificate(definition.Signature.ValidatingCertificate, rootPath);
 
                 if (string.IsNullOrEmpty(validationCertificateFile))
                 {
@@ -389,7 +389,7 @@ namespace Net.Web.Api.Sdk.Models.Token
 
             if (!string.IsNullOrEmpty(definition.Signature.SigningCertificate))
             {
-                var signingCertificateFile = SearchCertificate(definition.Signature.SigningCertificate);
+                var signingCertificateFile = SearchCertificate(definition.Signature.SigningCertificate, rootPath);
 
                 signingContent = File.ReadAllBytes(signingCertificateFile);
 
@@ -412,10 +412,10 @@ namespace Net.Web.Api.Sdk.Models.Token
         /// Searches the certificate.
         /// </summary>
         /// <param name="name">The name.</param>
+        /// <param name="rootPath">The root path.</param>
         /// <returns>System.String.</returns>
-        private static string SearchCertificate(string name)
+        private static string SearchCertificate(string name, string rootPath)
         {
-            var rootPath = HttpContext.Current.Server.MapPath(@"\");
             var certificate = Directory.GetFiles(rootPath, name, SearchOption.AllDirectories).FirstOrDefault();
 
             return certificate;

@@ -1,5 +1,4 @@
 ﻿using System;
-using Castle.Windsor;
 
 namespace Net.Web.Api.Sdk.Injection.Containers
 {
@@ -28,9 +27,9 @@ namespace Net.Web.Api.Sdk.Injection.Containers
         #region Private Properties
 
         /// <summary>
-        /// The container
+        /// The service provider backing the container.
         /// </summary>
-        private IWindsorContainer _container;
+        private IServiceProvider _provider;
 
         #endregion
 
@@ -46,12 +45,12 @@ namespace Net.Web.Api.Sdk.Injection.Containers
         #region Public Methods
 
         /// <summary>
-        /// Sets the container.
+        /// Sets the underlying <see cref="IServiceProvider"/> used to resolve services.
         /// </summary>
-        /// <param name="container">The container.</param>
-        public void SetContainer(IWindsorContainer container)
+        /// <param name="provider">The service provider.</param>
+        public void SetContainer(IServiceProvider provider)
         {
-            _container = container;
+            _provider = provider;
         }
 
         /// <summary>
@@ -61,7 +60,7 @@ namespace Net.Web.Api.Sdk.Injection.Containers
         /// <returns>T.</returns>
         public T GetService<T>()
         {
-            return _container.Resolve<T>();
+            return (T)_provider.GetService(typeof(T));
         }
 
         #endregion
@@ -73,7 +72,7 @@ namespace Net.Web.Api.Sdk.Injection.Containers
         /// </summary>
         internal void DisposeContainer()
         {
-            _container?.Dispose();
+            (_provider as IDisposable)?.Dispose();
         }
 
         #endregion
