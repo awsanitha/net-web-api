@@ -10,7 +10,7 @@
         /// <summary>
         /// The route prefix version
         /// </summary>
-        public const string ROUTE_PREFIX_VERSION = "api/v{api-version:" + API_VERSION_FIELD + "}";
+        public const string ROUTE_PREFIX_VERSION = "api/v{version:apiVersion}";
 
         #endregion
 

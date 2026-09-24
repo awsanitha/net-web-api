@@ -1,5 +1,4 @@
-﻿using Net.Web.Api.Sdk.Injection.Containers;
-using Net.Web.Api.Sdk.Interfaces.Token;
+﻿using Net.Web.Api.Sdk.Interfaces.Token;
 using Net.Web.Api.Sdk.Properties;
 using System;
 using System.ComponentModel.DataAnnotations;
@@ -24,11 +23,17 @@ namespace Net.Web.Api.Sdk.Attributes.Validations
         /// <returns>An instance of the <see cref="T:System.ComponentModel.DataAnnotations.ValidationResult" /> class.</returns>
         protected override ValidationResult IsValid(object value, ValidationContext validationContext)
         {
-            var service = InjectionContainer.Instance.GetService<IJwtTokenService>();
+            var service = validationContext.GetService(typeof(IJwtTokenService)) as IJwtTokenService;
+
+            if (service == null)
+            {
+                return new ValidationResult("IJwtTokenService is not available");
+            }
+
             var tokenName = value != null ? value.ToString().Trim().ToUpper() : string.Empty;
             var exists = service.Tokens.ContainsKey(tokenName);
 
-            if(exists)
+            if (exists)
             {
                 return ValidationResult.Success;
             }

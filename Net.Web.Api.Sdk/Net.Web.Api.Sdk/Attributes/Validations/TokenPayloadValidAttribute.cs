@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
-using System.Reflection;
 
 namespace Net.Web.Api.Sdk.Attributes.Validations
 {
@@ -35,9 +34,9 @@ namespace Net.Web.Api.Sdk.Attributes.Validations
                 return ValidationResult.Success;
             }
 
-            if (value != null && value.GetType() != typeof(List<KeyValuePair<string, string>>))
+            if (value.GetType() != typeof(List<KeyValuePair<string, string>>))
             {
-                return new ValidationResult(string.Format(GetDefaultRequiredMessage(), name));
+                return new ValidationResult(string.Format(Resources.FieldRequiredText, name));
             }
 
             var collection = value as List<KeyValuePair<string, string>>;
@@ -72,7 +71,7 @@ namespace Net.Web.Api.Sdk.Attributes.Validations
                 return new ValidationResult(string.Format(Resources.TokenPayloadDuplicatedKeys, string.Join(", ", duplicated)));
             }
 
-            var reserved = Enum.GetNames(typeof(TokenInternalClaimNames)).ToList();
+            var reserved = Enum.GetNames(typeof(JwtTokenModel.TokenInternalClaimNames)).ToList();
             var intersection = reserved.Intersect(keys).ToList();
 
             if (intersection.Count <= 0)
@@ -81,41 +80,6 @@ namespace Net.Web.Api.Sdk.Attributes.Validations
             }
 
             return new ValidationResult(string.Format(Resources.TokenPayloadReservedKeys, string.Join(", ", intersection)));
-        }
-
-        #endregion
-
-        #region Private Methods
-
-        /// <summary>
-        /// Gets the default required message.
-        /// </summary>
-        /// <returns>System.String.</returns>
-        private static string GetDefaultRequiredMessage()
-        {
-            var message = string.Empty;
-            var assembly = Assembly.GetAssembly(typeof(RequiredAttribute));
-
-            foreach (var type in assembly.GetTypes())
-            {
-                if (!type.Name.Equals("DataAnnotationsResources"))
-                {
-                    continue;
-                }
-
-                var property = type.GetProperty("RequiredAttribute_ValidationError", BindingFlags.NonPublic | BindingFlags.Static);
-
-                if (property == null)
-                {
-                    continue;
-                }
-
-                message = (string)property.GetValue(null);
-
-                break;
-            }
-
-            return !string.IsNullOrEmpty(message) ? message : Resources.FieldRequiredText;
         }
 
         #endregion

@@ -1,11 +1,8 @@
 ﻿using System;
-using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
-using System.Text.RegularExpressions;
-using System.Web;
 using Microsoft.IdentityModel.Tokens;
 using Net.Web.Api.Sdk.Configurations.Token;
 using Newtonsoft.Json;
@@ -13,300 +10,252 @@ using Newtonsoft.Json.Converters;
 
 namespace Net.Web.Api.Sdk.Models.Token
 {
-    internal enum TokenInternalClaimNames
-    {
-        /// <summary>
-        /// The token will not be valid before a give utc date/time
-        /// </summary>
-        nbf,
-
-        /// <summary>
-        /// The token expiration utc date/time
-        /// </summary>
-        exp,
-
-        /// <summary>
-        /// The token issue utc date/time
-        /// </summary>
-        iat,
-
-        /// <summary>
-        /// The token issuer
-        /// </summary>
-        iss,
-
-        /// <summary>
-        /// The token audince
-        /// </summary>
-        aud,
-
-        /// <summary>
-        /// The token unique identifier
-        /// </summary>
-        jti,
-
-        /// <summary>
-        /// The the token expiration in minutes
-        /// </summary>
-        exm,
-
-        /// <summary>
-        /// The token name
-        /// </summary>
-        tn,
-
-        /// <summary>
-        /// One time use token
-        /// </summary>
-        otu
-    }
-
-    /// <summary>
-    /// Enum TokenSecurityType
-    /// </summary>
-    [JsonConverter(typeof(StringEnumConverter))]
-    public enum TokenSecurityTypes
-    {
-        /// <summary>
-        /// The pass phrase
-        /// </summary>
-        PassPhrase,
-
-        /// <summary>
-        /// The certificate
-        /// </summary>
-        Certificate
-    }
-
-    /// <summary>
-    /// Enum TokenSecurityAlgorithms
-    /// </summary>
-    [JsonConverter(typeof(StringEnumConverter))]
-    public enum TokenSecurityAlgorithms
-    {
-        /// <summary>
-        /// The hmac sha256
-        /// </summary>
-        HmacSha256,
-
-        /// <summary>
-        /// The hmac sha384
-        /// </summary>
-        HmacSha384,
-
-        /// <summary>
-        /// The hmac sha512
-        /// </summary>
-        HmacSha512
-    }
-
-    /// <summary>
-    /// Enum TokenStatus
-    /// </summary>
-    [JsonConverter(typeof(StringEnumConverter))]
-    public enum TokenStatus
-    {
-        /// <summary>
-        /// The already used
-        /// </summary>
-        AlreadyUsed,
-
-        /// <summary>
-        /// The expired
-        /// </summary>
-        Expired,
-
-        /// <summary>
-        /// The invalid
-        /// </summary>
-        Invalid,
-
-        /// <summary>
-        /// The invalid audience
-        /// </summary>
-        InvalidAudience,
-
-        /// <summary>
-        /// The required
-        /// </summary>
-        TokenRequired,
-
-        /// <summary>
-        /// The revoked
-        /// </summary>
-        Revoked,
-
-        /// <summary>
-        /// The valid
-        /// </summary>
-        Valid
-    }
-
-    /// <summary>
-    /// Interface ITokenCredential
-    /// </summary>
-    internal interface ITokenCredential
-    {
-        /// <summary>
-        /// Gets or sets the security key.
-        /// </summary>
-        /// <value>The security key.</value>
-        SecurityKey SecurityKey { get; set; }
-
-        /// <summary>
-        /// Gets or sets the signing credentials.
-        /// </summary>
-        /// <value>The signing credentials.</value>
-        SigningCredentials SigningCredentials { get; set; }
-    }
-
     /// <summary>
     /// Class JwtTokenModel.
     /// </summary>
     public class JwtTokenModel
     {
-        #region Private Constants
+        #region Static Properties
 
         /// <summary>
-        /// The urn pattern
+        /// The content root path, set during application startup.
         /// </summary>
-        private const string URN_PATTERN = @"^(?<URN>[uU][rR][nN]\:(?<NID>(?!urn\:)[a-zA-Z0-9][a-zA-Z0-9-]{1,31})\:(?<NSS>([a-zA-Z0-9()+,._!*':=@;$-]|%[0-9a-fA-F]{2})+))$";
+        public static string ContentRootPath { get; set; }
+
+        #endregion
+
+        #region Enums
+
+        /// <summary>
+        /// Enum TokenSecurityTypes
+        /// </summary>
+        [JsonConverter(typeof(StringEnumConverter))]
+        public enum TokenSecurityTypes
+        {
+            /// <summary>
+            /// The pass phrase
+            /// </summary>
+            PassPhrase,
+
+            /// <summary>
+            /// The certificate
+            /// </summary>
+            Certificate
+        }
+
+        /// <summary>
+        /// Enum TokenSecurityAlgorithms
+        /// </summary>
+        [JsonConverter(typeof(StringEnumConverter))]
+        public enum TokenSecurityAlgorithms
+        {
+            /// <summary>
+            /// The HMAC sha256
+            /// </summary>
+            HmacSha256,
+
+            /// <summary>
+            /// The HMAC sha384
+            /// </summary>
+            HmacSha384,
+
+            /// <summary>
+            /// The HMAC sha512
+            /// </summary>
+            HmacSha512
+        }
+
+        /// <summary>
+        /// Enum TokenStatus
+        /// </summary>
+        [JsonConverter(typeof(StringEnumConverter))]
+        public enum TokenStatus
+        {
+            /// <summary>
+            /// The token required
+            /// </summary>
+            TokenRequired,
+
+            /// <summary>
+            /// The invalid
+            /// </summary>
+            Invalid,
+
+            /// <summary>
+            /// The expired
+            /// </summary>
+            Expired,
+
+            /// <summary>
+            /// The invalid audience
+            /// </summary>
+            InvalidAudience,
+
+            /// <summary>
+            /// The revoked
+            /// </summary>
+            Revoked,
+
+            /// <summary>
+            /// The already used
+            /// </summary>
+            AlreadyUsed
+        }
+
+        /// <summary>
+        /// Enum TokenInternalClaimNames
+        /// </summary>
+        public enum TokenInternalClaimNames
+        {
+            /// <summary>
+            /// Not before
+            /// </summary>
+            nbf,
+
+            /// <summary>
+            /// Expiration
+            /// </summary>
+            exp,
+
+            /// <summary>
+            /// Issued at
+            /// </summary>
+            iat,
+
+            /// <summary>
+            /// Issuer
+            /// </summary>
+            iss,
+
+            /// <summary>
+            /// Audience
+            /// </summary>
+            aud,
+
+            /// <summary>
+            /// Token name
+            /// </summary>
+            tn,
+
+            /// <summary>
+            /// JWT ID
+            /// </summary>
+            jti,
+
+            /// <summary>
+            /// Expiration minutes
+            /// </summary>
+            exm,
+
+            /// <summary>
+            /// One time use
+            /// </summary>
+            otu
+        }
 
         #endregion
 
         #region Public Properties
 
         /// <summary>
-        /// The token name:
-        ///     - Case insensitive.
+        /// Gets or sets the name of the token.
         /// </summary>
         /// <value>The name of the token.</value>
-        public string TokenName { get; }
+        [JsonProperty("tokenName")]
+        public string TokenName { get; set; }
 
         /// <summary>
-        /// The token Issuer:
-        ///     - URL Format.
+        /// Gets or sets the token issuer.
         /// </summary>
         /// <value>The token issuer.</value>
-        public string TokenIssuer { get; }
+        [JsonProperty("tokenIssuer")]
+        public string TokenIssuer { get; set; }
 
         /// <summary>
-        /// The token intended audience:
-        ///     - URN Format.
+        /// Gets or sets the token intended audience.
         /// </summary>
         /// <value>The token intended audience.</value>
-        public string TokenIntendedAudience { get; }
+        [JsonProperty("tokenIntendedAudience")]
+        public string TokenIntendedAudience { get; set; }
 
         /// <summary>
-        /// The token expiration in minutes.
+        /// Gets or sets the token expiration in minutes.
         /// </summary>
         /// <value>The token expiration in minutes.</value>
-        public double TokenExpirationInMinutes { get; }
+        [JsonProperty("tokenExpirationInMinutes")]
+        public double TokenExpirationInMinutes { get; set; }
 
         /// <summary>
-        /// Specifies if the resulting token will be base 64 encoded:
-        ///     - In order to use the token not only in the request header but also as request parameters:
-        ///         - If the result encoded token is padded with = signs, these signs will bew replace by [EQUAL]
+        /// Gets or sets a value indicating whether this instance is token base64 encoded.
         /// </summary>
         /// <value><c>true</c> if this instance is token base64 encoded; otherwise, <c>false</c>.</value>
-        public bool IsTokenBase64Encoded { get; }
+        [JsonProperty("isTokenBase64Encoded")]
+        public bool IsTokenBase64Encoded { get; set; }
 
         /// <summary>
-        /// Gets a value indicating whether [one time use].
+        /// Gets or sets a value indicating whether [one time use].
         /// </summary>
         /// <value><c>true</c> if [one time use]; otherwise, <c>false</c>.</value>
-        public bool OneTimeUse { get; }
+        [JsonProperty("oneTimeUse")]
+        public bool OneTimeUse { get; set; }
 
         /// <summary>
-        /// The token security type:
-        ///     - PassPhrase
-        ///     - Certificate
+        /// Gets the type of the token security.
         /// </summary>
-        /// <value>The type of the token security.</value>       
-        public TokenSecurityTypes TokenSecurityType { get; }
+        /// <value>The type of the token security.</value>
+        [JsonIgnore]
+        public TokenSecurityTypes? TokenSecurityType { get; private set; }
 
         /// <summary>
-        /// The token security algorithm.
+        /// Gets the token security algorithm.
         /// </summary>
-        /// <value>The token security algorithm.</value>        
-        public TokenSecurityAlgorithms? TokenSecurityAlgorithm { get; set; }
+        /// <value>The token security algorithm.</value>
+        [JsonIgnore]
+        public TokenSecurityAlgorithms? TokenSecurityAlgorithm { get; private set; }
 
         /// <summary>
-        /// The signing token credential.
+        /// Gets the token certificate algorithm.
+        /// </summary>
+        /// <value>The token certificate algorithm.</value>
+        [JsonIgnore]
+        public string TokenCertificateAlgorithm { get; private set; }
+
+        /// <summary>
+        /// Gets the certificate algorithm.
+        /// </summary>
+        /// <value>The certificate algorithm.</value>
+        [JsonIgnore]
+        public string CertificateAlgorithm { get; private set; }
+
+        /// <summary>
+        /// Gets the signing token credential.
         /// </summary>
         /// <value>The signing token credential.</value>
         [JsonIgnore]
-        internal ITokenCredential SigningTokenCredential { get; set; }
+        public TokenCredential SigningTokenCredential { get; private set; }
 
         /// <summary>
-        /// The validating token credential.
+        /// Gets the validating token credential.
         /// </summary>
         /// <value>The validating token credential.</value>
         [JsonIgnore]
-        internal ITokenCredential ValidatingTokenCredential { get; set; }
-
-        /// <summary>
-        /// Token certificate algorithm.
-        /// </summary>
-        /// <value>The token certificate algorithm.</value>
-        public string TokenCertificateAlgorithm { get; internal set; }
-
-        /// <summary>
-        /// The certificate algorithm.
-        /// </summary>
-        /// <value>The certificate algorithm.</value>
-        public string CertificateAlgorithm { get; internal set; }
+        public TokenCredential ValidatingTokenCredential { get; private set; }
 
         #endregion
 
-        #region Conditional Serializations
+        #region Inner Classes
 
-        /// <summary>
-        /// Shoulds the serialize token security algorithm.
-        /// </summary>
-        /// <returns><c>true</c> if XXXX, <c>false</c> otherwise.</returns>
-        public bool ShouldSerializeTokenSecurityAlgorithm()
-        {
-            return TokenSecurityAlgorithm.HasValue;
-        }
-
-        /// <summary>
-        /// Shoulds the serialize token certificate algorithm.
-        /// </summary>
-        /// <returns><c>true</c> if XXXX, <c>false</c> otherwise.</returns>
-        public bool ShouldSerializeTokenCertificateAlgorithm()
-        {
-            return !string.IsNullOrEmpty(TokenCertificateAlgorithm);
-        }
-
-        /// <summary>
-        /// Shoulds the serialize certificate algorithm.
-        /// </summary>
-        /// <returns><c>true</c> if XXXX, <c>false</c> otherwise.</returns>
-        public bool ShouldSerializeCertificateAlgorithm()
-        {
-            return !string.IsNullOrEmpty(CertificateAlgorithm);
-        }
-
-        #endregion
-
-        #region Internal Class
-
-        /// <inheritdoc />
         /// <summary>
         /// Class TokenCredential.
         /// </summary>
-        /// <seealso cref="T:Dot.Net.Web.Api.Sdk.Models.Tokens.Interfaces.ITokenCredential" />
-        internal class TokenCredential : ITokenCredential
+        public class TokenCredential
         {
-            /// <inheritdoc />
             /// <summary>
             /// Gets or sets the security key.
             /// </summary>
             /// <value>The security key.</value>
             public SecurityKey SecurityKey { get; set; }
 
-            /// <inheritdoc />
             /// <summary>
             /// Gets or sets the signing credentials.
             /// </summary>
@@ -321,38 +270,23 @@ namespace Net.Web.Api.Sdk.Models.Token
         /// <summary>
         /// Initializes a new instance of the <see cref="JwtTokenModel"/> class.
         /// </summary>
+        public JwtTokenModel() { }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="JwtTokenModel"/> class.
+        /// </summary>
         /// <param name="tokenName">Name of the token.</param>
         /// <param name="definition">The definition.</param>
-        /// <exception cref="ArgumentException"></exception>
-        /// <exception cref="ArgumentException"></exception>
-        /// <exception cref="ArgumentNullException">ValidatingCertificate</exception>
-        /// <exception cref="FileNotFoundException"></exception>
-        /// <exception cref="FileNotFoundException"></exception>
-        [SuppressMessage("ReSharper", "NotResolvedInText")]
         public JwtTokenModel(string tokenName, TokenDefinitionElement definition)
         {
             TokenName = tokenName.ToUpper();
-
-            var validIssuer = Uri.TryCreate(definition.Issuer, UriKind.Absolute, out var uriResult)
-                              && (uriResult.Scheme == Uri.UriSchemeHttp || uriResult.Scheme == Uri.UriSchemeHttps);
-
-            if (!validIssuer)
-            {
-                throw new ArgumentException(definition.Issuer);
-            }
-
             TokenIssuer = definition.Issuer;
-
-            if (!Regex.IsMatch(definition.IntendedAudience, URN_PATTERN, RegexOptions.IgnorePatternWhitespace))
-            {
-                throw new ArgumentException(definition.IntendedAudience);
-            }
-
             TokenIntendedAudience = definition.IntendedAudience;
-
             TokenExpirationInMinutes = definition.ExpirationInMinute;
             IsTokenBase64Encoded = definition.IsBase64Encoded;
             OneTimeUse = definition.OneTimeUse;
+
+            TokenSecurityAlgorithm = TokenSecurityAlgorithms.HmacSha256;
 
             var passPhrase = definition.Signature.PassPhrase;
 
@@ -415,7 +349,7 @@ namespace Net.Web.Api.Sdk.Models.Token
         /// <returns>System.String.</returns>
         private static string SearchCertificate(string name)
         {
-            var rootPath = HttpContext.Current.Server.MapPath(@"\");
+            var rootPath = ContentRootPath ?? AppContext.BaseDirectory;
             var certificate = Directory.GetFiles(rootPath, name, SearchOption.AllDirectories).FirstOrDefault();
 
             return certificate;
@@ -476,9 +410,7 @@ namespace Net.Web.Api.Sdk.Models.Token
 
             if (validatingContent != null && validatingContent.Length > 0)
             {
-                var validatingCertificate = new X509Certificate2();
-
-                validatingCertificate.Import(validatingContent);
+                var validatingCertificate = X509CertificateLoader.LoadCertificate(validatingContent);
 
                 ValidatingTokenCredential = new TokenCredential
                 {
@@ -495,15 +427,15 @@ namespace Net.Web.Api.Sdk.Models.Token
                 return;
             }
 
-            var signingCertificate = new X509Certificate2();
+            X509Certificate2 signingCertificate;
 
             if (signingCertificatePassword == null)
             {
-                signingCertificate.Import(signingContent);
+                signingCertificate = X509CertificateLoader.LoadCertificate(signingContent);
             }
             else
             {
-                signingCertificate.Import(signingContent, signingCertificatePassword, X509KeyStorageFlags.Exportable);
+                signingCertificate = X509CertificateLoader.LoadPkcs12(signingContent, signingCertificatePassword, X509KeyStorageFlags.Exportable);
             }
 
             SigningTokenCredential = new TokenCredential

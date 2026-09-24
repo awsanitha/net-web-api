@@ -1,5 +1,6 @@
 ﻿using ByteSizeLib;
-using MultipartDataMediaFormatter.Infrastructure;
+using Microsoft.AspNetCore.Http;
+using Net.Web.Api.Sdk.Models;
 using Net.Web.Api.Sdk.Properties;
 using System;
 using System.Collections.Generic;
@@ -42,11 +43,11 @@ namespace Net.Web.Api.Sdk.Attributes.Validations
         public UploadFileAttribute(string allowedMimeTypes = null, long fileSizeLimit = 0)
         {
             AllowedMimeTypes = string.IsNullOrEmpty(allowedMimeTypes)
-                ? Settings.Default.AllowedMimeTypes.Cast<string>().ToList()
+                ? new List<string> { "application/octet-stream" }
                 : allowedMimeTypes.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
                     .Select(c => c.Trim()).ToList();
-            
-            FileSizeLimit = fileSizeLimit <= 0 ? Settings.Default.MaxAllowedUploadSize : fileSizeLimit;
+
+            FileSizeLimit = fileSizeLimit <= 0 ? 10 * 1024 * 1024 : fileSizeLimit; // default 10MB
         }
 
         #endregion
@@ -61,22 +62,46 @@ namespace Net.Web.Api.Sdk.Attributes.Validations
         /// <returns>An instance of the <see cref="T:System.ComponentModel.DataAnnotations.ValidationResult" /> class.</returns>
         protected override ValidationResult IsValid(object value, ValidationContext validationContext)
         {
+            // Try resolving options from DI if available
+            var options = validationContext.GetService(typeof(Microsoft.Extensions.Options.IOptions<UploadFileOptions>))
+                as Microsoft.Extensions.Options.IOptions<UploadFileOptions>;
+
+            var resolvedMimeTypes = AllowedMimeTypes;
+            var resolvedSizeLimit = FileSizeLimit;
+
+            if (options?.Value != null)
+            {
+                if (string.IsNullOrEmpty(AllowedMimeTypes.FirstOrDefault()) || AllowedMimeTypes.Count == 1 && AllowedMimeTypes[0] == "application/octet-stream")
+                {
+                    resolvedMimeTypes = options.Value.AllowedMimeTypes;
+                }
+                if (FileSizeLimit == 10 * 1024 * 1024)
+                {
+                    resolvedSizeLimit = options.Value.MaxAllowedUploadSize;
+                }
+            }
+
             var name = string.IsNullOrEmpty(validationContext.DisplayName)
                 ? validationContext.MemberName
                 : validationContext.DisplayName;
-            var fileInformation = (HttpFile)value;
-            var mimeType = fileInformation.MediaType;
 
-            if (!AllowedMimeTypes.Contains(mimeType))
+            if (value is not IFormFile fileInformation)
+            {
+                return ValidationResult.Success;
+            }
+
+            var mimeType = fileInformation.ContentType;
+
+            if (!resolvedMimeTypes.Contains(mimeType))
             {
                 return new ValidationResult(string.Format(Resources.MimeTypeNotAllowedText, name, mimeType));
             }
 
-            var length = fileInformation.Buffer.LongLength;
+            var length = fileInformation.Length;
             var friendlyLength = ByteSize.FromBytes(length).ToString("#.#");
-            var friendlyLimit = ByteSize.FromBytes(FileSizeLimit).ToString("#.#");
+            var friendlyLimit = ByteSize.FromBytes(resolvedSizeLimit).ToString("#.#");
 
-            return length > FileSizeLimit
+            return length > resolvedSizeLimit
                 ? new ValidationResult(string.Format(Resources.FileSizeLimitReachedText, friendlyLength, friendlyLimit))
                 : ValidationResult.Success;
         }
