@@ -1,0 +1,222 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>Net.Web.Api.Sdk.Web.Examples</name>
+    </assembly>
+    <members>
+        <member name="T:Net.Web.Api.Sdk.Web.Examples.Classes.Constants.ExampleControllerGroups">
+            <summary>
+            Class ExampleControllerGroups.
+            </summary>
+        </member>
+        <member name="F:Net.Web.Api.Sdk.Web.Examples.Classes.Constants.ExampleControllerGroups.SECURITY">
+            <summary>
+            The security
+            </summary>
+        </member>
+        <member name="F:Net.Web.Api.Sdk.Web.Examples.Classes.Constants.ExampleControllerGroups.OTHER">
+            <summary>
+            The other
+            </summary>
+        </member>
+        <member name="T:Net.Web.Api.Sdk.Web.Examples.Classes.Implementations.PrimeNumberService">
+            <summary>
+            Class PrimeNumberService.
+            Implements the <see cref="T:Net.Web.Api.Sdk.Web.Examples.Classes.Interfaces.IPrimeNumberService" />
+            </summary>
+            <seealso cref="T:Net.Web.Api.Sdk.Web.Examples.Classes.Interfaces.IPrimeNumberService" />
+        </member>
+        <member name="M:Net.Web.Api.Sdk.Web.Examples.Classes.Implementations.PrimeNumberService.GeneratePrimeNumbers(System.Int32)">
+            <summary>
+            Generates the prime numbers.
+            </summary>
+            <param name="number">The number.</param>
+            <returns>IList&lt;System.Int32&gt;.</returns>
+        </member>
+        <member name="M:Net.Web.Api.Sdk.Web.Examples.Classes.Implementations.PrimeNumberService.SieveOfEratosthenes(System.Int32)">
+            <summary>
+            Sieves the of eratosthenes.
+            </summary>
+            <param name="limit">The limit.</param>
+            <returns>BitArray.</returns>
+        </member>
+        <member name="M:Net.Web.Api.Sdk.Web.Examples.Classes.Implementations.PrimeNumberService.ApproximateNthPrime(System.Int32)">
+            <summary>
+            Approximates the NTH prime.
+            </summary>
+            <param name="nn">The nn.</param>
+            <returns>System.Int32.</returns>
+        </member>
+        <member name="T:Net.Web.Api.Sdk.Web.Examples.Classes.Interfaces.IPrimeNumberService">
+            <summary>
+            Interface IPrimeNumberService
+            </summary>
+        </member>
+        <member name="M:Net.Web.Api.Sdk.Web.Examples.Classes.Interfaces.IPrimeNumberService.GeneratePrimeNumbers(System.Int32)">
+            <summary>
+            Generates the prime numbers.
+            </summary>
+            <param name="limit">The limit.</param>
+            <returns>IList&lt;System.Int32&gt;.</returns>
+        </member>
+        <member name="T:Net.Web.Api.Sdk.Web.Examples.Controllers.Common.ExampleController">
+            <summary>
+            Class ExampleController.
+            Implements the <see cref="T:Net.Web.Api.Sdk.Controllers.Common.SdkController" />
+            </summary>
+            <seealso cref="T:Net.Web.Api.Sdk.Controllers.Common.SdkController" />
+        </member>
+        <member name="F:Net.Web.Api.Sdk.Web.Examples.Controllers.Common.ExampleController.ROUTE_PREFIX">
+            <summary>
+            The route prefix
+            </summary>
+        </member>
+        <member name="T:Net.Web.Api.Sdk.Web.Examples.Controllers.v1.ExampleTokenController">
+            <summary>
+            Class ExampleTokenController.
+            Implements the <see cref="T:Net.Web.Api.Sdk.Web.Examples.Controllers.Common.ExampleController" />
+            </summary>
+            <seealso cref="T:Net.Web.Api.Sdk.Web.Examples.Controllers.Common.ExampleController" />
+        </member>
+        <member name="F:Net.Web.Api.Sdk.Web.Examples.Controllers.v1.ExampleTokenController._tokenService">
+            <summary>
+            The token service
+            </summary>
+        </member>
+        <member name="M:Net.Web.Api.Sdk.Web.Examples.Controllers.v1.ExampleTokenController.#ctor(Net.Web.Api.Sdk.Interfaces.Token.IJwtTokenService)">
+            <summary>
+            Initializes a new instance of the <see cref="T:Net.Web.Api.Sdk.Web.Examples.Controllers.v1.ExampleTokenController"/> class.
+            </summary>
+            <param name="tokenService">The token service.</param>
+            <exception cref="T:System.ArgumentNullException">tokenService</exception>
+        </member>
+        <member name="M:Net.Web.Api.Sdk.Web.Examples.Controllers.v1.ExampleTokenController.CreateToken(Net.Web.Api.Sdk.Web.Examples.Models.CreateTokenRequest)">
+            <summary>
+            Creates a new JWT Token.
+            </summary>
+            <returns>IActionResult.</returns>
+        </member>
+        <member name="M:Net.Web.Api.Sdk.Web.Examples.Controllers.v1.ExampleTokenController.RevokeToken">
+            <summary>
+            Revokes a token passed in the authorization header.
+            </summary>
+            <returns>IActionResult.</returns>
+        </member>
+        <member name="M:Net.Web.Api.Sdk.Web.Examples.Controllers.v1.ExampleTokenController.ValidateToken">
+            <summary>
+            Validates a token passed in the authorization header.
+            </summary>
+            <returns>IActionResult.</returns>
+        </member>
+        <member name="T:Net.Web.Api.Sdk.Web.Examples.Controllers.v1.ExampleUploadController">
+            <summary>
+            Class ExampleUploadController. This class cannot be inherited.
+            Implements the <see cref="T:Net.Web.Api.Sdk.Web.Examples.Controllers.Common.ExampleController" />
+            </summary>
+            <seealso cref="T:Net.Web.Api.Sdk.Web.Examples.Controllers.Common.ExampleController" />
+        </member>
+        <member name="F:Net.Web.Api.Sdk.Web.Examples.Controllers.v1.ExampleUploadController._fileService">
+            <summary>
+            The file service
+            </summary>
+        </member>
+        <member name="M:Net.Web.Api.Sdk.Web.Examples.Controllers.v1.ExampleUploadController.#ctor(Net.Web.Api.Sdk.Interfaces.File.IFileService)">
+            <summary>
+            Initializes a new instance of the <see cref="T:Net.Web.Api.Sdk.Web.Examples.Controllers.v1.ExampleUploadController"/> class.
+            </summary>
+            <param name="fileService">The file service.</param>
+            <exception cref="T:System.ArgumentNullException">fileService</exception>
+        </member>
+        <member name="M:Net.Web.Api.Sdk.Web.Examples.Controllers.v1.ExampleUploadController.UploadFile(Net.Web.Api.Sdk.Web.Examples.Models.UploadRequest)">
+            <summary>
+            Uploads a file.
+            </summary>
+            <param name="parameters">The parameters.</param>
+            <returns>IActionResult.</returns>
+        </member>
+        <member name="T:Net.Web.Api.Sdk.Web.Examples.Models.CreateTokenRequest">
+            <summary>
+            Class CreateTokenRequest.
+            </summary>
+        </member>
+        <member name="P:Net.Web.Api.Sdk.Web.Examples.Models.CreateTokenRequest.Name">
+            <summary>
+            The token name as defined in the token configuration files.
+                - Case insensitive.
+            </summary>
+            <value>The name.</value>
+        </member>
+        <member name="P:Net.Web.Api.Sdk.Web.Examples.Models.CreateTokenRequest.UniqueId">
+            <summary>
+            The token unique identifier that will be used as identity name.
+                - User name,
+                - Email address,
+                - Any other unique identifiers.
+            </summary>
+            <value>The unique identifier.</value>
+        </member>
+        <member name="P:Net.Web.Api.Sdk.Web.Examples.Models.CreateTokenRequest.Payload">
+            <summary>
+            The token payload.
+                - keys cannot be empty.
+                - keys are to be unique.
+                - values cannot be empty.
+            </summary>
+            <value>The payload.</value>
+        </member>
+        <member name="T:Net.Web.Api.Sdk.Web.Examples.Models.CreateTokenResult">
+            <summary>
+            Class CreateTokenResult.
+            </summary>
+        </member>
+        <member name="P:Net.Web.Api.Sdk.Web.Examples.Models.CreateTokenResult.AccessToken">
+            <summary>
+            The JWT token created.
+            </summary>
+            <value>The access token.</value>
+        </member>
+        <member name="M:Net.Web.Api.Sdk.Web.Examples.Models.CreateTokenResult.#ctor(System.String)">
+            <summary>
+            Initializes a new instance of the <see cref="T:Net.Web.Api.Sdk.Web.Examples.Models.CreateTokenResult"/> class.
+            </summary>
+            <param name="token">The token.</param>
+        </member>
+        <member name="T:Net.Web.Api.Sdk.Web.Examples.Models.UploadRequest">
+            <summary>
+            Class UploadRequest.
+            </summary>
+        </member>
+        <member name="P:Net.Web.Api.Sdk.Web.Examples.Models.UploadRequest.FileInformation">
+            <summary>
+            File to upload.
+            </summary>
+            <value>The file information.</value>
+        </member>
+        <member name="T:Net.Web.Api.Sdk.Web.Examples.Properties.Resources">
+            <summary>
+              A strongly-typed resource class, for looking up localized strings, etc.
+            </summary>
+        </member>
+        <member name="P:Net.Web.Api.Sdk.Web.Examples.Properties.Resources.ResourceManager">
+            <summary>
+              Returns the cached ResourceManager instance used by this class.
+            </summary>
+        </member>
+        <member name="P:Net.Web.Api.Sdk.Web.Examples.Properties.Resources.Culture">
+            <summary>
+              Overrides the current thread's CurrentUICulture property for all
+              resource lookups using this strongly typed resource class.
+            </summary>
+        </member>
+        <member name="P:Net.Web.Api.Sdk.Web.Examples.Properties.Resources.PrimeNumberLimit">
+            <summary>
+              Looks up a localized string similar to The Limit must be greater than 0 and lower or equal to 5000..
+            </summary>
+        </member>
+        <member name="T:Program">
+            <summary>
+            Auto-generated public partial Program class for top-level statement apps.
+            </summary>
+        </member>
+    </members>
+</doc>
