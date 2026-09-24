@@ -7,5 +7,5 @@ namespace Net.Web.Api.Sdk.Documentation.Filters
     /// Implements the <see cref="SwaggerOrderingFilter" />
     /// </summary>
     /// <seealso cref="SwaggerOrderingFilter" />
-    public class SwaggerMethodOrderingFilter : SwaggerOrderingFilter {}
+    public class SwaggerMethodOrderingFilter : SwaggerOrderingFilter { }
 }

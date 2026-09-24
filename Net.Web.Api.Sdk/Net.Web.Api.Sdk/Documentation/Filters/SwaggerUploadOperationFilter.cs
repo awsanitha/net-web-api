@@ -1,76 +1,89 @@
-﻿using System.Linq;
-using System.Web.Http.Description;
-using Net.Web.Api.Sdk.Documentation.Attributes;
-using Swashbuckle.Swagger;
+﻿using Net.Web.Api.Sdk.Documentation.Attributes;
+using Microsoft.OpenApi.Models;
+using Swashbuckle.AspNetCore.SwaggerGen;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using Microsoft.AspNetCore.Http;
 
 namespace Net.Web.Api.Sdk.Documentation.Filters
 {
-    /// <inheritdoc />
     /// <summary>
     /// Class SwaggerUploadOperationFilter.
     /// </summary>
-    /// <seealso cref="T:Web.Api.Toolkit.Swashbuckle.Swagger.IOperationFilter" />
     public class SwaggerUploadOperationFilter : IOperationFilter
     {
         #region IOperationFilter Implementations
 
-        /// <inheritdoc />
         /// <summary>
         /// Applies the specified operation.
         /// </summary>
         /// <param name="operation">The operation.</param>
-        /// <param name="schemaRegistry">The schema registry.</param>
-        /// <param name="apiDescription">The API description.</param>
-        public void Apply(Operation operation, SchemaRegistry schemaRegistry, ApiDescription apiDescription)
+        /// <param name="context">The operation filter context.</param>
+        public void Apply(OpenApiOperation operation, OperationFilterContext context)
         {
-            var upload = apiDescription.ActionDescriptor.GetCustomAttributes<SwaggerUploadOperationAttribute>().FirstOrDefault();
+            var upload = context.MethodInfo.GetCustomAttributes<SwaggerUploadOperationAttribute>().FirstOrDefault();
 
             if (upload == null)
             {
                 return;
             }
 
-            if (!schemaRegistry.Definitions.TryGetValue(upload.ParameterType.Name, out var schema))
+            var schema = context.SchemaGenerator.GenerateSchema(upload.ParameterType, context.SchemaRepository);
+
+            if (schema == null)
             {
                 return;
             }
 
-            operation.parameters.Clear();
+            var properties = new Dictionary<string, OpenApiSchema>();
+            var required = new HashSet<string>();
 
-            foreach (var property in schema.properties)
+            var type = upload.ParameterType;
+
+            foreach (var prop in type.GetProperties())
             {
-                var name = property.Key;
-                var definition = property.Value;
+                var propName = char.ToLower(prop.Name[0]) + prop.Name.Substring(1);
 
-                if (!string.IsNullOrEmpty(definition.@ref) && definition.@ref.Contains("HttpFile"))
+                if (typeof(IFormFile).IsAssignableFrom(prop.PropertyType))
                 {
-                    operation.parameters.Add(new Parameter
+                    properties[propName] = new OpenApiSchema
                     {
-                        name = name,
-                        @in = "formData",
-                        description = definition.description,
-                        @default = definition.@default,
-                        type = "file",
-                        required = schema.required.Contains(name)
-                    });
+                        Type = "string",
+                        Format = "binary"
+                    };
                 }
                 else
                 {
-                    operation.parameters.Add(new Parameter
+                    properties[propName] = new OpenApiSchema
                     {
-                        name = name,
-                        @in = "formData",
-                        description = definition.description,
-                        @default = definition.@default,
-                        type = definition.type,
-                        required = schema.required.Contains(name),
-                        maxLength = definition.maxLength,
-                        minLength = definition.minLength
-                    });
+                        Type = "string"
+                    };
+                }
+
+                if (prop.GetCustomAttributes(typeof(System.ComponentModel.DataAnnotations.RequiredAttribute), true).Any())
+                {
+                    required.Add(propName);
                 }
             }
 
-            operation.consumes.Add("multipart/form-data");
+            operation.Parameters.Clear();
+
+            operation.RequestBody = new OpenApiRequestBody
+            {
+                Content = new Dictionary<string, OpenApiMediaType>
+                {
+                    ["multipart/form-data"] = new OpenApiMediaType
+                    {
+                        Schema = new OpenApiSchema
+                        {
+                            Type = "object",
+                            Properties = properties,
+                            Required = required
+                        }
+                    }
+                }
+            };
         }
 
         #endregion

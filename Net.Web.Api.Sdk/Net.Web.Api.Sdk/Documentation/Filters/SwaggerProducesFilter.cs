@@ -1,11 +1,11 @@
 ﻿using Net.Web.Api.Sdk.Documentation.Attributes;
-using Swashbuckle.Swagger;
+using Microsoft.OpenApi.Models;
+using Swashbuckle.AspNetCore.SwaggerGen;
 using System.Linq;
-using System.Web.Http.Description;
+using System.Reflection;
 
 namespace Net.Web.Api.Sdk.Documentation.Filters
 {
-    /// <inheritdoc />
     /// <summary>
     /// Class SwaggerProducesFilter.
     /// </summary>
@@ -13,25 +13,34 @@ namespace Net.Web.Api.Sdk.Documentation.Filters
     {
         #region IOperationFilter Implementations
 
-        /// <inheritdoc />
         /// <summary>
         /// Applies the specified operation.
         /// </summary>
         /// <param name="operation">The operation.</param>
-        /// <param name="schemaRegistry">The schema registry.</param>
-        /// <param name="apiDescription">The API description.</param>
-        /// <exception cref="T:System.NotImplementedException"></exception>
-        public void Apply(Operation operation, SchemaRegistry schemaRegistry, ApiDescription apiDescription)
+        /// <param name="context">The operation filter context.</param>
+        public void Apply(OpenApiOperation operation, OperationFilterContext context)
         {
-            var attribute = apiDescription.GetControllerAndActionAttributes<SwaggerProducesAttribute>().SingleOrDefault();
+            var attribute = context.MethodInfo.GetCustomAttributes<SwaggerProducesAttribute>().SingleOrDefault();
 
             if (attribute == null)
             {
                 return;
             }
 
-            operation.produces.Clear();
-            operation.produces = attribute.ContentTypes.ToList();
+            foreach (var response in operation.Responses)
+            {
+                if (response.Value.Content == null)
+                {
+                    continue;
+                }
+
+                var keysToRemove = response.Value.Content.Keys
+                    .Where(k => !attribute.ContentTypes.Contains(k)).ToList();
+                foreach (var key in keysToRemove)
+                {
+                    response.Value.Content.Remove(key);
+                }
+            }
         }
 
         #endregion

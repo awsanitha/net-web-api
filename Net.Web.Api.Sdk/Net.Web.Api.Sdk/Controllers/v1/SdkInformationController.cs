@@ -1,14 +1,13 @@
-﻿using Microsoft.Web.Http;
+﻿using Asp.Versioning;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Net.Web.Api.Sdk.Common.Constants;
 using Net.Web.Api.Sdk.Controllers.Common;
 using Net.Web.Api.Sdk.Documentation.Attributes;
 using Net.Web.Api.Sdk.Interfaces.Information;
 using Newtonsoft.Json.Linq;
-using Swashbuckle.Swagger.Annotations;
 using System;
 using System.Net;
-using System.Web.Http;
-using System.Web.Http.Cors;
 
 namespace Net.Web.Api.Sdk.Controllers.v1
 {
@@ -17,10 +16,9 @@ namespace Net.Web.Api.Sdk.Controllers.v1
     /// Implements the <see cref="SdkController" />
     /// </summary>
     /// <seealso cref="SdkController" />
-    [EnableCors("*", "*", "*", SupportsCredentials = true)]
     [AllowAnonymous]
     [ApiVersion("1.0")]
-    [RoutePrefix(RouteConstants.ROUTE_PREFIX_VERSION)]
+    [Route(RouteConstants.ROUTE_PREFIX_VERSION)]
     public class SdkInformationController : SdkController
     {
         #region Services
@@ -50,16 +48,15 @@ namespace Net.Web.Api.Sdk.Controllers.v1
         /// <summary>
         /// Returns the .Net Web API SDK informations.
         /// </summary>
-        /// <returns>IHttpActionResult.</returns>
+        /// <returns>IActionResult.</returns>
         [HttpGet]
         [Route("sdk/informations")]
         [AllowAnonymous]
         [SwaggerMethodOrder(1)]
-        [SwaggerOperation(Tags = new[] { SwaggerSdkConstants.ABOUT })]
         [SwaggerProduces(ConsumerProducerConstants.JSON)]
-        [SwaggerResponse(HttpStatusCode.OK, Type = typeof(JObject))]
-        [SwaggerResponse(HttpStatusCode.InternalServerError, Description = ResponseDescriptionConstants.TECHNICAL_ERROR)]
-        public IHttpActionResult GetSdkInformations()
+        [ProducesResponseType(typeof(JObject), (int)HttpStatusCode.OK)]
+        [ProducesResponseType((int)HttpStatusCode.InternalServerError)]
+        public IActionResult GetSdkInformations()
         {
             try
             {
@@ -67,7 +64,7 @@ namespace Net.Web.Api.Sdk.Controllers.v1
             }
             catch (Exception ex)
             {
-                return InternalServerError(ex);
+                return StatusCode(500, ex);
             }
         }
 
