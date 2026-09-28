@@ -1,4 +1,4 @@
-﻿using Microsoft.Web.Http;
+﻿using Asp.Versioning;
 using Net.Web.Api.Sdk.Common.Constants;
 using Net.Web.Api.Sdk.Documentation.Attributes;
 using Net.Web.Api.Sdk.Interfaces.File;
@@ -6,12 +6,13 @@ using Net.Web.Api.Sdk.Security.Attributes;
 using Net.Web.Api.Sdk.Web.Examples.Classes.Constants;
 using Net.Web.Api.Sdk.Web.Examples.Controllers.Common;
 using Net.Web.Api.Sdk.Web.Examples.Models;
-using Swashbuckle.Swagger.Annotations;
+using Swashbuckle.AspNetCore.Annotations;
 using System;
 using System.Collections.Generic;
-using System.Net;
-using System.Web.Http;
-using System.Web.Http.Cors;
+using System.IO;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Cors;
 
 namespace Net.Web.Api.Sdk.Web.Examples.Controllers.v1
 {
@@ -20,10 +21,10 @@ namespace Net.Web.Api.Sdk.Web.Examples.Controllers.v1
     /// Implements the <see cref="ExampleController" />
     /// </summary>
     /// <seealso cref="ExampleController" />
-    [EnableCors("*", "*", "*", SupportsCredentials = true)]
+    [EnableCors]
     [AllowAnonymous]
     [ApiVersion("1.0")]
-    [RoutePrefix(RouteConstants.ROUTE_PREFIX_VERSION)]
+    [Route(RouteConstants.ROUTE_PREFIX_VERSION)]
     public sealed class ExampleUploadController : ExampleController
     {
         #region Services
@@ -56,7 +57,7 @@ namespace Net.Web.Api.Sdk.Web.Examples.Controllers.v1
         /// Uploads a file.
         /// </summary>
         /// <param name="parameters">The parameters.</param>
-        /// <returns>IHttpActionResult.</returns>
+        /// <returns>IActionResult.</returns>
         [HttpPost]
         [Route(ROUTE_PREFIX + "uploadFile")]
         [TokenAuthorize]
@@ -65,23 +66,27 @@ namespace Net.Web.Api.Sdk.Web.Examples.Controllers.v1
         [SwaggerOperation(Tags = new[] { ExampleControllerGroups.OTHER })]
         [SwaggerConsumes(ConsumerProducerConstants.MULTIPART)]
         [SwaggerProduces(ConsumerProducerConstants.JSON)]
-        [SwaggerResponse(HttpStatusCode.OK)]
-        [SwaggerResponse(HttpStatusCode.BadRequest, Type = typeof(IList<string>), Description = ResponseDescriptionConstants.INVALID_PARAMETER)]
-        [SwaggerResponse(HttpStatusCode.Forbidden, Description = ResponseDescriptionConstants.ACCESS_FORBIDDEN)]
-        [SwaggerResponse(HttpStatusCode.Unauthorized, Description = ResponseDescriptionConstants.AUTHORIZATION_FAILED)]
-        [SwaggerResponse(HttpStatusCode.InternalServerError, Description = ResponseDescriptionConstants.TECHNICAL_ERROR)]
+        [SwaggerResponse(200)]
+        [SwaggerResponse(400, Type = typeof(IList<string>), Description = ResponseDescriptionConstants.INVALID_PARAMETER)]
+        [SwaggerResponse(403, Description = ResponseDescriptionConstants.ACCESS_FORBIDDEN)]
+        [SwaggerResponse(401, Description = ResponseDescriptionConstants.AUTHORIZATION_FAILED)]
+        [SwaggerResponse(500, Description = ResponseDescriptionConstants.TECHNICAL_ERROR)]
 
-        public IHttpActionResult UploadFile(UploadRequest parameters)
+        public IActionResult UploadFile([FromForm] UploadRequest parameters)
         {
             try
             {
+                using var memoryStream = new MemoryStream();
+                parameters.FileInformation.CopyTo(memoryStream);
+                var buffer = memoryStream.ToArray();
+
                 return Ok(_fileService.UploadFile(
-                    parameters.FileInformation.Buffer,
+                    buffer,
                     parameters.FileInformation.FileName));
             }
             catch (Exception ex)
             {
-                return InternalServerError(ex);
+                return StatusCode(500, ex.Message);
             }
         }
 

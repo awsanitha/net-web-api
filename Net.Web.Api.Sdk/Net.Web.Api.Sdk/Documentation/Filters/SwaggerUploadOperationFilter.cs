@@ -1,7 +1,9 @@
-﻿using System.Linq;
-using System.Web.Http.Description;
+﻿using Microsoft.OpenApi.Models;
 using Net.Web.Api.Sdk.Documentation.Attributes;
-using Swashbuckle.Swagger;
+using Swashbuckle.AspNetCore.SwaggerGen;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 
 namespace Net.Web.Api.Sdk.Documentation.Filters
 {
@@ -9,7 +11,7 @@ namespace Net.Web.Api.Sdk.Documentation.Filters
     /// <summary>
     /// Class SwaggerUploadOperationFilter.
     /// </summary>
-    /// <seealso cref="T:Web.Api.Toolkit.Swashbuckle.Swagger.IOperationFilter" />
+    /// <seealso cref="IOperationFilter" />
     public class SwaggerUploadOperationFilter : IOperationFilter
     {
         #region IOperationFilter Implementations
@@ -19,58 +21,91 @@ namespace Net.Web.Api.Sdk.Documentation.Filters
         /// Applies the specified operation.
         /// </summary>
         /// <param name="operation">The operation.</param>
-        /// <param name="schemaRegistry">The schema registry.</param>
-        /// <param name="apiDescription">The API description.</param>
-        public void Apply(Operation operation, SchemaRegistry schemaRegistry, ApiDescription apiDescription)
+        /// <param name="context">The operation filter context.</param>
+        public void Apply(OpenApiOperation operation, OperationFilterContext context)
         {
-            var upload = apiDescription.ActionDescriptor.GetCustomAttributes<SwaggerUploadOperationAttribute>().FirstOrDefault();
+            var upload = context.MethodInfo.GetCustomAttributes<SwaggerUploadOperationAttribute>(true).FirstOrDefault();
 
             if (upload == null)
             {
                 return;
             }
 
-            if (!schemaRegistry.Definitions.TryGetValue(upload.ParameterType.Name, out var schema))
+            var parameterType = upload.ParameterType;
+            var schemaKey = parameterType.Name;
+
+            if (!context.SchemaRepository.Schemas.TryGetValue(schemaKey, out var schema))
             {
-                return;
+                // Generate schema if not already present
+                schema = context.SchemaGenerator.GenerateSchema(parameterType, context.SchemaRepository);
             }
 
-            operation.parameters.Clear();
+            // Build multipart/form-data schema properties from the parameter type's schema
+            var properties = new Dictionary<string, OpenApiSchema>();
+            var requiredProperties = new HashSet<string>();
 
-            foreach (var property in schema.properties)
+            if (schema?.Properties != null)
             {
-                var name = property.Key;
-                var definition = property.Value;
+                foreach (var property in schema.Properties)
+                {
+                    var name = property.Key;
+                    var definition = property.Value;
 
-                if (!string.IsNullOrEmpty(definition.@ref) && definition.@ref.Contains("HttpFile"))
-                {
-                    operation.parameters.Add(new Parameter
+                    // Check if property is an IFormFile (was HttpFile in old API)
+                    var propInfo = parameterType.GetProperty(name,
+                        BindingFlags.Public | BindingFlags.Instance | BindingFlags.IgnoreCase);
+                    var isFileType = propInfo != null &&
+                        (typeof(Microsoft.AspNetCore.Http.IFormFile).IsAssignableFrom(propInfo.PropertyType) ||
+                         propInfo.PropertyType.Name.Contains("File"));
+
+                    if (isFileType || (definition.Reference != null && definition.Reference.Id != null &&
+                        definition.Reference.Id.Contains("FormFile")))
                     {
-                        name = name,
-                        @in = "formData",
-                        description = definition.description,
-                        @default = definition.@default,
-                        type = "file",
-                        required = schema.required.Contains(name)
-                    });
-                }
-                else
-                {
-                    operation.parameters.Add(new Parameter
+                        properties.Add(name, new OpenApiSchema
+                        {
+                            Type = "string",
+                            Format = "binary",
+                            Description = definition.Description
+                        });
+                    }
+                    else
                     {
-                        name = name,
-                        @in = "formData",
-                        description = definition.description,
-                        @default = definition.@default,
-                        type = definition.type,
-                        required = schema.required.Contains(name),
-                        maxLength = definition.maxLength,
-                        minLength = definition.minLength
-                    });
+                        properties.Add(name, new OpenApiSchema
+                        {
+                            Type = definition.Type,
+                            Description = definition.Description,
+                            Default = definition.Default,
+                            MaxLength = definition.MaxLength,
+                            MinLength = definition.MinLength
+                        });
+                    }
+
+                    if (schema.Required != null && schema.Required.Contains(name))
+                    {
+                        requiredProperties.Add(name);
+                    }
                 }
             }
 
-            operation.consumes.Add("multipart/form-data");
+            // Clear existing parameters that were auto-generated
+            operation.Parameters?.Clear();
+
+            // Set up multipart/form-data request body
+            operation.RequestBody = new OpenApiRequestBody
+            {
+                Content = new Dictionary<string, OpenApiMediaType>
+                {
+                    ["multipart/form-data"] = new OpenApiMediaType
+                    {
+                        Schema = new OpenApiSchema
+                        {
+                            Type = "object",
+                            Properties = properties,
+                            Required = requiredProperties
+                        }
+                    }
+                }
+            };
         }
 
         #endregion

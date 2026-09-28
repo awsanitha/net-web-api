@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
-using System.Reflection;
 
 namespace Net.Web.Api.Sdk.Attributes.Validations
 {
@@ -91,32 +90,7 @@ namespace Net.Web.Api.Sdk.Attributes.Validations
         /// Gets the default required message.
         /// </summary>
         /// <returns>System.String.</returns>
-        private static string GetDefaultRequiredMessage()
-        {
-            var message = string.Empty;
-            var assembly = Assembly.GetAssembly(typeof(RequiredAttribute));
-
-            foreach (var type in assembly.GetTypes())
-            {
-                if (!type.Name.Equals("DataAnnotationsResources"))
-                {
-                    continue;
-                }
-
-                var property = type.GetProperty("RequiredAttribute_ValidationError", BindingFlags.NonPublic | BindingFlags.Static);
-
-                if (property == null)
-                {
-                    continue;
-                }
-
-                message = (string)property.GetValue(null);
-
-                break;
-            }
-
-            return !string.IsNullOrEmpty(message) ? message : Resources.FieldRequiredText;
-        }
+        private static string GetDefaultRequiredMessage() => "The {0} field is required.";
 
         #endregion
     }

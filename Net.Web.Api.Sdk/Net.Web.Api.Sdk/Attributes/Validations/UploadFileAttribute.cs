@@ -1,5 +1,6 @@
 ﻿using ByteSizeLib;
-using MultipartDataMediaFormatter.Infrastructure;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Options;
 using Net.Web.Api.Sdk.Properties;
 using System;
 using System.Collections.Generic;
@@ -22,13 +23,20 @@ namespace Net.Web.Api.Sdk.Attributes.Validations
         /// Gets the allowed MIME types.
         /// </summary>
         /// <value>The allowed MIME types.</value>
-        public IList<string> AllowedMimeTypes { get; }
+        public IList<string> AllowedMimeTypes { get; private set; }
 
         /// <summary>
         /// Gets the file size limit.
         /// </summary>
         /// <value>The file size limit.</value>
-        public long FileSizeLimit { get; }
+        public long FileSizeLimit { get; private set; }
+
+        #endregion
+
+        #region Fields
+
+        private readonly string _allowedMimeTypesParam;
+        private readonly long _fileSizeLimitParam;
 
         #endregion
 
@@ -41,12 +49,8 @@ namespace Net.Web.Api.Sdk.Attributes.Validations
         /// <param name="fileSizeLimit">The file size limit.</param>
         public UploadFileAttribute(string allowedMimeTypes = null, long fileSizeLimit = 0)
         {
-            AllowedMimeTypes = string.IsNullOrEmpty(allowedMimeTypes)
-                ? Settings.Default.AllowedMimeTypes.Cast<string>().ToList()
-                : allowedMimeTypes.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
-                    .Select(c => c.Trim()).ToList();
-            
-            FileSizeLimit = fileSizeLimit <= 0 ? Settings.Default.MaxAllowedUploadSize : fileSizeLimit;
+            _allowedMimeTypesParam = allowedMimeTypes;
+            _fileSizeLimitParam = fileSizeLimit;
         }
 
         #endregion
@@ -61,18 +65,29 @@ namespace Net.Web.Api.Sdk.Attributes.Validations
         /// <returns>An instance of the <see cref="T:System.ComponentModel.DataAnnotations.ValidationResult" /> class.</returns>
         protected override ValidationResult IsValid(object value, ValidationContext validationContext)
         {
+            // Resolve settings from DI via ValidationContext
+            var settingsOptions = validationContext.GetService(typeof(IOptions<SdkUploadSettings>)) as IOptions<SdkUploadSettings>;
+            var settings = settingsOptions?.Value ?? new SdkUploadSettings();
+
+            AllowedMimeTypes = string.IsNullOrEmpty(_allowedMimeTypesParam)
+                ? settings.AllowedMimeTypes
+                : _allowedMimeTypesParam.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(c => c.Trim()).ToList();
+
+            FileSizeLimit = _fileSizeLimitParam <= 0 ? settings.MaxAllowedUploadSize : _fileSizeLimitParam;
+
             var name = string.IsNullOrEmpty(validationContext.DisplayName)
                 ? validationContext.MemberName
                 : validationContext.DisplayName;
-            var fileInformation = (HttpFile)value;
-            var mimeType = fileInformation.MediaType;
+            var formFile = (IFormFile)value;
+            var mimeType = formFile.ContentType;
 
             if (!AllowedMimeTypes.Contains(mimeType))
             {
                 return new ValidationResult(string.Format(Resources.MimeTypeNotAllowedText, name, mimeType));
             }
 
-            var length = fileInformation.Buffer.LongLength;
+            var length = formFile.Length;
             var friendlyLength = ByteSize.FromBytes(length).ToString("#.#");
             var friendlyLimit = ByteSize.FromBytes(FileSizeLimit).ToString("#.#");
 
