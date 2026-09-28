@@ -1,14 +1,14 @@
-﻿using Net.Web.Api.Sdk.Interfaces.Information;
+﻿using Microsoft.AspNetCore.Hosting;
+using Net.Web.Api.Sdk.Interfaces.Information;
 using Net.Web.Api.Sdk.Interfaces.Token;
 using Net.Web.Api.Sdk.Properties;
-using NuGet;
 using System;
 using System.Collections.Generic;
 using System.Dynamic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Web;
+using System.Xml.Linq;
 
 namespace Net.Web.Api.Sdk.Implementations.Information
 {
@@ -40,6 +40,11 @@ namespace Net.Web.Api.Sdk.Implementations.Information
         /// </summary>
         private readonly IJwtTokenService _tokenService;
 
+        /// <summary>
+        /// The web host environment
+        /// </summary>
+        private readonly IWebHostEnvironment _env;
+
         #endregion
 
         #region Constructors
@@ -48,10 +53,12 @@ namespace Net.Web.Api.Sdk.Implementations.Information
         /// Initializes a new instance of the <see cref="InformationService"/> class.
         /// </summary>
         /// <param name="tokenService">The token service.</param>
+        /// <param name="env">The web host environment.</param>
         /// <exception cref="ArgumentNullException">tokenService</exception>
-        public InformationService(IJwtTokenService tokenService)
+        public InformationService(IJwtTokenService tokenService, IWebHostEnvironment env)
         {
             _tokenService = tokenService ?? throw new ArgumentNullException(nameof(tokenService));
+            _env = env ?? throw new ArgumentNullException(nameof(env));
         }
 
         #endregion
@@ -62,12 +69,11 @@ namespace Net.Web.Api.Sdk.Implementations.Information
         /// Gets the SDK informations.
         /// </summary>
         /// <returns>dynamic.</returns>
-        /// <exception cref="NotImplementedException"></exception>
         public dynamic GetSdkInformations()
         {           
             var assembly = Assembly.GetExecutingAssembly();
             var sourceResource = $"{assembly.GetName().Name}.{NUGET_INFORMATION_FILE_NAME}";
-            var rootPath = HttpContext.Current.Server.MapPath(@"\");
+            var rootPath = _env.ContentRootPath;
             var nugetPackageConfigFileName = Path.Combine(rootPath, PACKAGE_INFORMATION_FILE_NAME);
 
             string content = null;
@@ -92,25 +98,43 @@ namespace Net.Web.Api.Sdk.Implementations.Information
 
             result.library = GetAssemblyInformations();
 
-            var tokens = _tokenService.Tokens.Select(c=>c.Value).ToList().OrderBy(c=>c.TokenName);
+            var tokens = _tokenService.Tokens.Select(c => c.Value).ToList().OrderBy(c => c.TokenName);
 
             result.availableTokens = tokens;
 
-            if(System.IO.File.Exists(nugetPackageConfigFileName))
+            if (System.IO.File.Exists(nugetPackageConfigFileName))
             {
-                var packageConfiguration = new PackageReferenceFile(nugetPackageConfigFileName);
-                var allPacakges = packageConfiguration.GetPackageReferences();
                 var nugetPackages = new List<dynamic>();
 
-                foreach (var package in allPacakges)
+                try
                 {
-                    dynamic onePackage = new ExpandoObject();
+                    var doc = XDocument.Load(nugetPackageConfigFileName);
+                    var packages = doc.Descendants("package");
 
-                    onePackage.name = package.Id;
-                    onePackage.version = package.Version.ToString();
-                    onePackage.framework = package.TargetFramework.Version.ToString();
+                    foreach (var package in packages)
+                    {
+                        dynamic onePackage = new ExpandoObject();
 
-                    nugetPackages.Add(onePackage);
+                        onePackage.name = package.Attribute("id")?.Value ?? string.Empty;
+                        onePackage.version = package.Attribute("version")?.Value ?? string.Empty;
+                        onePackage.framework = package.Attribute("targetFramework")?.Value ?? string.Empty;
+
+                        nugetPackages.Add(onePackage);
+                    }
+                }
+                catch
+                {
+                    // If the file is not valid packages.config XML, fall back to referenced assemblies
+                    foreach (var referencedAssembly in assembly.GetReferencedAssemblies().OrderBy(a => a.Name))
+                    {
+                        dynamic onePackage = new ExpandoObject();
+
+                        onePackage.name = referencedAssembly.Name;
+                        onePackage.version = referencedAssembly.Version?.ToString() ?? string.Empty;
+                        onePackage.framework = string.Empty;
+
+                        nugetPackages.Add(onePackage);
+                    }
                 }
 
                 result.packages = nugetPackages;
@@ -138,11 +162,11 @@ namespace Net.Web.Api.Sdk.Implementations.Information
 
             dynamic result = new ExpandoObject();
 
-            result.title = title.Title;
-            result.description = description.Description;
-            result.version = version.Version;
-            result.copyright = copyright.Copyright;
-            result.author = author.Company;
+            result.title = title?.Title;
+            result.description = description?.Description;
+            result.version = version?.Version;
+            result.copyright = copyright?.Copyright;
+            result.author = author?.Company;
             result.license = Resources.License;
 
             return result;

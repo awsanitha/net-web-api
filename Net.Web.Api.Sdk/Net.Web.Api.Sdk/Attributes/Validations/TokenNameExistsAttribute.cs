@@ -24,7 +24,12 @@ namespace Net.Web.Api.Sdk.Attributes.Validations
         /// <returns>An instance of the <see cref="T:System.ComponentModel.DataAnnotations.ValidationResult" /> class.</returns>
         protected override ValidationResult IsValid(object value, ValidationContext validationContext)
         {
-            var service = InjectionContainer.Instance.GetService<IJwtTokenService>();
+            var service = (IJwtTokenService)validationContext.GetService(typeof(IJwtTokenService));
+            if (service == null)
+            {
+                service = InjectionContainer.Instance.GetService<IJwtTokenService>(); // fallback
+            }
+
             var tokenName = value != null ? value.ToString().Trim().ToUpper() : string.Empty;
             var exists = service.Tokens.ContainsKey(tokenName);
 

@@ -5,7 +5,6 @@ using System.Linq;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Web;
 using Microsoft.IdentityModel.Tokens;
 using Net.Web.Api.Sdk.Configurations.Token;
 using Newtonsoft.Json;
@@ -323,13 +322,14 @@ namespace Net.Web.Api.Sdk.Models.Token
         /// </summary>
         /// <param name="tokenName">Name of the token.</param>
         /// <param name="definition">The definition.</param>
+        /// <param name="rootPath">The application root path for searching certificate files.</param>
         /// <exception cref="ArgumentException"></exception>
         /// <exception cref="ArgumentException"></exception>
         /// <exception cref="ArgumentNullException">ValidatingCertificate</exception>
         /// <exception cref="FileNotFoundException"></exception>
         /// <exception cref="FileNotFoundException"></exception>
         [SuppressMessage("ReSharper", "NotResolvedInText")]
-        public JwtTokenModel(string tokenName, TokenDefinitionElement definition)
+        public JwtTokenModel(string tokenName, TokenDefinitionOptions definition, string rootPath = null)
         {
             TokenName = tokenName.ToUpper();
 
@@ -377,7 +377,7 @@ namespace Net.Web.Api.Sdk.Models.Token
 
             if (!string.IsNullOrEmpty(definition.Signature.ValidatingCertificate))
             {
-                var validationCertificateFile = SearchCertificate(definition.Signature.ValidatingCertificate);
+                var validationCertificateFile = SearchCertificate(definition.Signature.ValidatingCertificate, rootPath);
 
                 if (string.IsNullOrEmpty(validationCertificateFile))
                 {
@@ -389,7 +389,7 @@ namespace Net.Web.Api.Sdk.Models.Token
 
             if (!string.IsNullOrEmpty(definition.Signature.SigningCertificate))
             {
-                var signingCertificateFile = SearchCertificate(definition.Signature.SigningCertificate);
+                var signingCertificateFile = SearchCertificate(definition.Signature.SigningCertificate, rootPath);
 
                 signingContent = File.ReadAllBytes(signingCertificateFile);
 
@@ -412,10 +412,15 @@ namespace Net.Web.Api.Sdk.Models.Token
         /// Searches the certificate.
         /// </summary>
         /// <param name="name">The name.</param>
+        /// <param name="rootPath">The root path to search from.</param>
         /// <returns>System.String.</returns>
-        private static string SearchCertificate(string name)
+        private static string SearchCertificate(string name, string rootPath)
         {
-            var rootPath = HttpContext.Current.Server.MapPath(@"\");
+            if (string.IsNullOrEmpty(rootPath))
+            {
+                return null;
+            }
+
             var certificate = Directory.GetFiles(rootPath, name, SearchOption.AllDirectories).FirstOrDefault();
 
             return certificate;
@@ -476,9 +481,7 @@ namespace Net.Web.Api.Sdk.Models.Token
 
             if (validatingContent != null && validatingContent.Length > 0)
             {
-                var validatingCertificate = new X509Certificate2();
-
-                validatingCertificate.Import(validatingContent);
+                var validatingCertificate = X509CertificateLoader.LoadCertificate(validatingContent);
 
                 ValidatingTokenCredential = new TokenCredential
                 {
@@ -495,15 +498,15 @@ namespace Net.Web.Api.Sdk.Models.Token
                 return;
             }
 
-            var signingCertificate = new X509Certificate2();
+            X509Certificate2 signingCertificate;
 
             if (signingCertificatePassword == null)
             {
-                signingCertificate.Import(signingContent);
+                signingCertificate = X509CertificateLoader.LoadPkcs12(signingContent, null, X509KeyStorageFlags.Exportable);
             }
             else
             {
-                signingCertificate.Import(signingContent, signingCertificatePassword, X509KeyStorageFlags.Exportable);
+                signingCertificate = X509CertificateLoader.LoadPkcs12(signingContent, signingCertificatePassword, X509KeyStorageFlags.Exportable);
             }
 
             SigningTokenCredential = new TokenCredential

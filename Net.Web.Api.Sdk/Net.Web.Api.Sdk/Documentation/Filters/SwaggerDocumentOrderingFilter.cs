@@ -1,6 +1,6 @@
 ﻿using Net.Web.Api.Sdk.Documentation.Filters.Common;
 
-namespace Web.Api.Toolkit.Filters.Swagger
+namespace Net.Web.Api.Sdk.Documentation.Filters
 {
     /// <summary>
     /// Class SwaggerDocumentOrderingFilter.

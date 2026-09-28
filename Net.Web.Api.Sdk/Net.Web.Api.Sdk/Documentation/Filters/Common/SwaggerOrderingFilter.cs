@@ -1,8 +1,9 @@
-﻿using Net.Web.Api.Sdk.Documentation.Attributes;
-using Swashbuckle.Swagger;
+﻿using Microsoft.OpenApi.Models;
+using Net.Web.Api.Sdk.Documentation.Attributes;
+using Swashbuckle.AspNetCore.SwaggerGen;
 using System.Collections.Generic;
 using System.Linq;
-using System.Web.Http.Description;
+using System.Reflection;
 
 namespace Net.Web.Api.Sdk.Documentation.Filters.Common
 {
@@ -19,11 +20,10 @@ namespace Net.Web.Api.Sdk.Documentation.Filters.Common
         /// Applies the specified swagger document.
         /// </summary>
         /// <param name="swaggerDoc">The swagger document.</param>
-        /// <param name="schemaRegistry">The schema registry.</param>
-        /// <param name="apiExplorer">The API explorer.</param>
-        public virtual void Apply(SwaggerDocument swaggerDoc, SchemaRegistry schemaRegistry, IApiExplorer apiExplorer)
+        /// <param name="context">The document filter context.</param>
+        public virtual void Apply(OpenApiDocument swaggerDoc, DocumentFilterContext context)
         {
-            OrderingApply(swaggerDoc, schemaRegistry, apiExplorer);
+            OrderingApply(swaggerDoc, context);
         }
 
         #endregion
@@ -36,71 +36,44 @@ namespace Net.Web.Api.Sdk.Documentation.Filters.Common
         /// <param name="item">The item.</param>
         /// <param name="tag">The tag.</param>
         /// <returns>System.String.</returns>
-        internal static string GetInvokeMethod(PathItem item, out string tag)
+        internal static string GetInvokeMethod(OpenApiPathItem item, out string tag)
         {
             tag = string.Empty;
 
-            if (item.get != null)
+            var operationMethodPairs = new[]
             {
-                tag = item.get.tags != null && item.get.tags.Count == 1 ? item.get.tags[0] : string.Empty;
+                (OperationType.Get, "GET"),
+                (OperationType.Put, "PUT"),
+                (OperationType.Post, "POST"),
+                (OperationType.Delete, "DELETE"),
+                (OperationType.Options, "OPTIONS"),
+                (OperationType.Head, "HEAD"),
+                (OperationType.Patch, "PATCH")
+            };
 
-                return "GET";
+            foreach (var (opType, methodName) in operationMethodPairs)
+            {
+                if (item.Operations.TryGetValue(opType, out var operation))
+                {
+                    tag = operation.Tags != null && operation.Tags.Count == 1
+                        ? operation.Tags[0].Name
+                        : string.Empty;
+
+                    return methodName;
+                }
             }
 
-            if (item.put != null)
-            {
-                tag = item.put.tags != null && item.put.tags.Count == 1 ? item.put.tags[0] : string.Empty;
-
-                return "PUT";
-            }
-
-            if (item.post != null)
-            {
-                tag = item.post.tags != null && item.post.tags.Count == 1 ? item.post.tags[0] : string.Empty;
-
-                return "POST";
-            }
-
-            if (item.delete != null)
-            {
-                tag = item.delete.tags != null && item.delete.tags.Count == 1 ? item.delete.tags[0] : string.Empty;
-
-                return "DELETE";
-            }
-
-            if (item.options != null)
-            {
-                tag = item.options.tags != null && item.options.tags.Count == 1 ? item.options.tags[0] : string.Empty;
-
-                return "OPTIONS";
-            }
-
-            if (item.head != null)
-            {
-                tag = item.head.tags != null && item.head.tags.Count == 1 ? item.head.tags[0] : string.Empty;
-
-                return "HEAD";
-            }
-
-            if (item.patch == null)
-            {
-                return string.Empty;
-            }
-
-            tag = item.patch.tags != null && item.patch.tags.Count == 1 ? item.patch.tags[0] : string.Empty;
-
-            return "PATCH";
+            return string.Empty;
         }
 
         /// <summary>
         /// Orderings the apply.
         /// </summary>
         /// <param name="swaggerDoc">The swagger document.</param>
-        /// <param name="schemaRegistry">The schema registry.</param>
-        /// <param name="apiExplorer">The API explorer.</param>
-        internal static void OrderingApply(SwaggerDocument swaggerDoc, SchemaRegistry schemaRegistry, IApiExplorer apiExplorer)
+        /// <param name="context">The document filter context.</param>
+        internal static void OrderingApply(OpenApiDocument swaggerDoc, DocumentFilterContext context)
         {
-            var paths = swaggerDoc.paths;
+            var paths = swaggerDoc.Paths;
 
             if (paths == null || !paths.Any())
             {
@@ -113,7 +86,8 @@ namespace Net.Web.Api.Sdk.Documentation.Filters.Common
             {
                 var key = GetInvokeMethod(path.Value, out var tag);
                 var apiKey = $"{key}{path.Key.TrimStart('/')}";
-                var apiFound = apiExplorer.ApiDescriptions.FirstOrDefault(c => c.ID.StartsWith(apiKey));
+                var apiFound = context.ApiDescriptions.FirstOrDefault(c => c.RelativePath != null &&
+                    apiKey.Contains(c.RelativePath.TrimStart('/')));
 
                 if (!tagGroups.ContainsKey(tag))
                 {
@@ -139,7 +113,14 @@ namespace Net.Web.Api.Sdk.Documentation.Filters.Common
                 list.AddRange(tagGroup.Value);
             }
 
-            swaggerDoc.paths = list.OrderBy(c => c.OperationName).ToDictionary(c => c.PathKey, c => c.PathValue);
+            var orderedPaths = new OpenApiPaths();
+
+            foreach (var apiOrder in list.OrderBy(c => c.OperationName))
+            {
+                orderedPaths.Add(apiOrder.PathKey, apiOrder.PathValue);
+            }
+
+            swaggerDoc.Paths = orderedPaths;
         }
 
         /// <summary>
@@ -147,45 +128,35 @@ namespace Net.Web.Api.Sdk.Documentation.Filters.Common
         /// </summary>
         /// <param name="apiDescription">The API description.</param>
         /// <returns>System.Int32.</returns>
-        internal static int GetApiOrder(ApiDescription apiDescription)
+        internal static int GetApiOrder(Microsoft.AspNetCore.Mvc.ApiExplorer.ApiDescription apiDescription)
         {
-            var apiDescriptor = apiDescription.ActionDescriptor;
-            var controllerDescriptor = apiDescriptor?.ControllerDescriptor;
-
-            if (controllerDescriptor == null)
+            if (apiDescription?.ActionDescriptor == null)
             {
                 return -1;
             }
 
-            var controllerType = controllerDescriptor.ControllerType;
+            var actionDescriptor = apiDescription.ActionDescriptor;
 
-            if (controllerType == null)
+            if (actionDescriptor is Microsoft.AspNetCore.Mvc.Controllers.ControllerActionDescriptor controllerActionDescriptor)
             {
-                return -1;
+                var actionMethod = controllerActionDescriptor.MethodInfo;
+
+                if (actionMethod == null)
+                {
+                    return -1;
+                }
+
+                var attr = actionMethod.GetCustomAttributes(typeof(SwaggerMethodOrderAttribute), false).FirstOrDefault();
+
+                if (attr == null)
+                {
+                    return -1;
+                }
+
+                return ((SwaggerMethodOrderAttribute)attr).Order;
             }
 
-            var actionName = apiDescriptor.ActionName;
-
-            if (string.IsNullOrEmpty(actionName))
-            {
-                return -1;
-            }
-
-            var actionMethod = controllerType.GetMethod(actionName);
-
-            if (actionMethod == null)
-            {
-                return -1;
-            }
-
-            var attr = actionMethod.GetCustomAttributes(typeof(SwaggerMethodOrderAttribute), false).FirstOrDefault();
-
-            if (attr == null)
-            {
-                return -1;
-            }
-
-            return ((SwaggerMethodOrderAttribute)attr).Order;
+            return -1;
         }
 
         #endregion
@@ -215,7 +186,7 @@ namespace Net.Web.Api.Sdk.Documentation.Filters.Common
             /// Gets or sets the path value.
             /// </summary>
             /// <value>The path value.</value>
-            internal PathItem PathValue { get; set; }
+            internal OpenApiPathItem PathValue { get; set; }
 
             /// <summary>
             /// Gets or sets the name of the operation.

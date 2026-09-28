@@ -1,26 +1,26 @@
 ﻿using System;
-using Castle.Windsor;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Net.Web.Api.Sdk.Injection.Containers
 {
     /// <summary>
     /// Class InjectionContainer. This class cannot be inherited.
+    /// Provides a static service locator for contexts where constructor injection
+    /// is not available (e.g., validation attributes, authorization attributes).
     /// </summary>
     public sealed class InjectionContainer
     {
         #region Singleton
 
         /// <summary>
-        /// The lazy
+        /// The singleton instance.
         /// </summary>
         private static readonly Lazy<InjectionContainer> _lazy = new Lazy<InjectionContainer>(() => new InjectionContainer());
 
         /// <summary>
-        /// Gets the instance.
+        /// Gets the singleton instance.
         /// </summary>
-        /// <value>
-        /// The instance.
-        /// </value>
+        /// <value>The instance.</value>
         public static InjectionContainer Instance => _lazy.Value;
 
         #endregion
@@ -28,9 +28,9 @@ namespace Net.Web.Api.Sdk.Injection.Containers
         #region Private Properties
 
         /// <summary>
-        /// The container
+        /// The service provider.
         /// </summary>
-        private IWindsorContainer _container;
+        private IServiceProvider _provider;
 
         #endregion
 
@@ -46,37 +46,27 @@ namespace Net.Web.Api.Sdk.Injection.Containers
         #region Public Methods
 
         /// <summary>
-        /// Sets the container.
+        /// Sets the service provider.
         /// </summary>
-        /// <param name="container">The container.</param>
-        public void SetContainer(IWindsorContainer container)
+        /// <param name="provider">The service provider.</param>
+        public void SetContainer(IServiceProvider provider)
         {
-            _container = container;
+            _provider = provider ?? throw new ArgumentNullException(nameof(provider));
         }
 
         /// <summary>
-        /// Gets the service.
+        /// Gets the service of the specified type.
         /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <returns>T.</returns>
-        public T GetService<T>()
+        /// <typeparam name="T">The service type.</typeparam>
+        /// <returns>The resolved service instance.</returns>
+        /// <exception cref="InvalidOperationException">Thrown when the container has not been initialized.</exception>
+        public T GetService<T>() where T : class
         {
-            return _container.Resolve<T>();
+            if (_provider == null)
+                throw new InvalidOperationException("InjectionContainer has not been initialized. Call SetContainer first.");
+            return _provider.GetRequiredService<T>();
         }
 
         #endregion
-
-        #region Internal Methods
-
-        /// <summary>
-        /// Disposes the container.
-        /// </summary>
-        internal void DisposeContainer()
-        {
-            _container?.Dispose();
-        }
-
-        #endregion
-
     }
 }
