@@ -1,10 +1,10 @@
 ﻿using System;
-using Castle.Windsor;
 
 namespace Net.Web.Api.Sdk.Injection.Containers
 {
     /// <summary>
     /// Class InjectionContainer. This class cannot be inherited.
+    /// Provides a static service locator backed by ASP.NET Core's IServiceProvider.
     /// </summary>
     public sealed class InjectionContainer
     {
@@ -28,9 +28,9 @@ namespace Net.Web.Api.Sdk.Injection.Containers
         #region Private Properties
 
         /// <summary>
-        /// The container
+        /// The service provider
         /// </summary>
-        private IWindsorContainer _container;
+        private IServiceProvider _serviceProvider;
 
         #endregion
 
@@ -46,12 +46,12 @@ namespace Net.Web.Api.Sdk.Injection.Containers
         #region Public Methods
 
         /// <summary>
-        /// Sets the container.
+        /// Sets the service provider.
         /// </summary>
-        /// <param name="container">The container.</param>
-        public void SetContainer(IWindsorContainer container)
+        /// <param name="serviceProvider">The service provider.</param>
+        public void SetServiceProvider(IServiceProvider serviceProvider)
         {
-            _container = container;
+            _serviceProvider = serviceProvider;
         }
 
         /// <summary>
@@ -61,22 +61,9 @@ namespace Net.Web.Api.Sdk.Injection.Containers
         /// <returns>T.</returns>
         public T GetService<T>()
         {
-            return _container.Resolve<T>();
+            return (T)_serviceProvider?.GetService(typeof(T));
         }
 
         #endregion
-
-        #region Internal Methods
-
-        /// <summary>
-        /// Disposes the container.
-        /// </summary>
-        internal void DisposeContainer()
-        {
-            _container?.Dispose();
-        }
-
-        #endregion
-
     }
 }

@@ -7,9 +7,9 @@ using System.IO;
 using System.Linq;
 using System.Security.Claims;
 using System.Text;
-using System.Web;
-using System.Web.Http.Controllers;
 using LiteDB;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.IdentityModel.Tokens;
 using Net.Web.Api.Sdk.Configurations.Token;
 using Net.Web.Api.Sdk.Extensions;
@@ -22,24 +22,11 @@ namespace Net.Web.Api.Sdk.Implementations.Token
     /// <summary>
     /// Class JwtTokenService.
     /// </summary>
-    /// <seealso cref="T:Net.Web.Api.Sdk.Interfaces.Token.IJwtTokenService" />
     public class JwtTokenService : IJwtTokenService
     {
         #region Constants
 
-        /// <summary>
-        /// The root path
-        /// </summary>
-        private const string ROOT_PATH = @"\";
-
-        /// <summary>
-        /// The token config file pattern
-        /// </summary>
         private const string TOKEN_CONFIG_FILE_PATTERN = "token*.config";
-
-        /// <summary>
-        /// The token data collection
-        /// </summary>
         private const string TOKEN_DATA_COLLECTION = "tokens";
 
         #endregion
@@ -47,20 +34,14 @@ namespace Net.Web.Api.Sdk.Implementations.Token
         #region Public Properties
 
         /// <inheritdoc />
-        /// <summary>
-        /// Gets or sets the tokens.
-        /// </summary>
-        /// <value>The tokens.</value>
         public Dictionary<string, JwtTokenModel> Tokens { get; private set; }
 
         #endregion
 
         #region Private Properties
 
-        /// <summary>
-        /// The token data base
-        /// </summary>
         private string _tokenDataBase;
+        private readonly string _rootPath;
 
         #endregion
 
@@ -69,24 +50,19 @@ namespace Net.Web.Api.Sdk.Implementations.Token
         /// <summary>
         /// Initializes a new instance of the <see cref="JwtTokenService"/> class.
         /// </summary>
-        public JwtTokenService()
+        /// <param name="env">The web host environment.</param>
+        public JwtTokenService(IWebHostEnvironment env)
         {
+            _rootPath = env?.ContentRootPath ?? AppDomain.CurrentDomain.BaseDirectory;
             LoadAllTokens();
             SetupTokenDatabase();
         }
 
         #endregion
 
-        #region ITokenService Implementations
+        #region IJwtTokenService Implementations
 
         /// <inheritdoc />
-        /// <summary>
-        /// Creates the token.
-        /// </summary>
-        /// <param name="tokenName">Name of the token.</param>
-        /// <param name="identityName">Name of the identity.</param>
-        /// <param name="customClaims">The custom claims.</param>
-        /// <returns>System.String.</returns>
         public virtual string CreateToken(string tokenName, string identityName, Dictionary<string, string> customClaims = null)
         {
             if (string.IsNullOrEmpty(tokenName))
@@ -96,9 +72,7 @@ namespace Net.Web.Api.Sdk.Implementations.Token
 
             tokenName = tokenName.ToUpper();
 
-            var isTokenDefined = Tokens.ContainsKey(tokenName);
-
-            if (!isTokenDefined)
+            if (!Tokens.ContainsKey(tokenName))
             {
                 throw new KeyNotFoundException(tokenName);
             }
@@ -123,16 +97,9 @@ namespace Net.Web.Api.Sdk.Implementations.Token
         }
 
         /// <inheritdoc />
-        /// <summary>
-        /// Gets the token validation parameters.
-        /// </summary>
-        /// <param name="validateExipration">if set to <c>true</c> [validate exipration].</param>
-        /// <param name="issuers">The issuers.</param>
-        /// <param name="audiences">The audiences.</param>
-        /// <returns>TokenValidationParameters.</returns>
         public virtual TokenValidationParameters GetTokenValidationParameters(
-            bool validateExipration = false, 
-            string issuers = null, 
+            bool validateExipration = false,
+            string issuers = null,
             string audiences = null)
         {
             var vi = !string.IsNullOrEmpty(issuers);
@@ -165,34 +132,31 @@ namespace Net.Web.Api.Sdk.Implementations.Token
         }
 
         /// <inheritdoc />
-        /// <summary>
-        /// Gets the token payload.
-        /// </summary>
-        /// <param name="context">The context.</param>
-        /// <returns>Dictionary&lt;System.String, System.String&gt;.</returns>
-        public virtual Dictionary<string, string> GetTokenPayload(HttpActionContext context)
+        public virtual Dictionary<string, string> GetTokenPayload(HttpContext context)
         {
-            var identity = context.RequestContext.Principal.Identity;
+            var identity = context?.User?.Identity;
 
             if (identity == null || !identity.IsAuthenticated)
             {
                 return new Dictionary<string, string>();
             }
 
-            context.GetToken(out var securityToken);
+            var authHeader = context.Request.Headers.Authorization.ToString();
+            JwtSecurityToken securityToken = null;
+
+            if (authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+            {
+                var rawToken = authHeader.Substring("Bearer ".Length).Trim();
+                rawToken.GetToken(out securityToken);
+            }
 
             return securityToken?.Claims?.ToClaimDictionary() ?? new Dictionary<string, string>();
         }
 
         /// <inheritdoc />
-        /// <summary>
-        /// Gets the identity payload.
-        /// </summary>
-        /// <param name="context">The context.</param>
-        /// <returns>Dictionary&lt;System.String, System.String&gt;.</returns>
-        public virtual Dictionary<string, string> GetIdentityPayload(HttpActionContext context)
+        public virtual Dictionary<string, string> GetIdentityPayload(HttpContext context)
         {
-            var principal = context.RequestContext.Principal;
+            var principal = context?.User;
             var identity = principal?.Identity;
 
             if (identity == null || !identity.IsAuthenticated)
@@ -200,76 +164,46 @@ namespace Net.Web.Api.Sdk.Implementations.Token
                 return new Dictionary<string, string>();
             }
 
-            var claims = ((ClaimsIdentity) identity).Claims;
+            var claims = ((ClaimsIdentity)identity).Claims;
 
-            var result = claims?.ToClaimDictionary(true) ?? new Dictionary<string, string>();
-            
-            return result;
+            return claims?.ToClaimDictionary(true) ?? new Dictionary<string, string>();
         }
 
-        /// <summary>
-        /// Determines whether [is token revoked] [the specified token].
-        /// </summary>
-        /// <param name="token">The token.</param>
-        /// <param name="claims">The claims.</param>
-        /// <returns><c>true</c> if [is token revoked] [the specified token]; otherwise, <c>false</c>.</returns>
+        /// <inheritdoc />
         public virtual bool IsTokenRevoked(string token, List<Claim> claims)
         {
             var found = GetTokenState(token, claims, out var isRevoked, out _);
 
-            if(!found)
-            {
-                return false;
-            }
-
-            return isRevoked;
+            return found && isRevoked;
         }
 
-        /// <summary>
-        /// Determines whether [is token used] [the specified token].
-        /// </summary>
-        /// <param name="token">The token.</param>
-        /// <param name="claims">The claims.</param>
-        /// <returns><c>true</c> if [is token used] [the specified token]; otherwise, <c>false</c>.</returns>
+        /// <inheritdoc />
         public virtual bool IsTokenUsed(string token, List<Claim> claims)
         {
-            if(!claims.IsTokenOneTimeUse())
+            if (!claims.IsTokenOneTimeUse())
             {
                 return false;
             }
 
             var found = GetTokenState(token, claims, out _, out var isUsed);
 
-            if (!found)
-            {
-                return false;
-            }
-
-            return isUsed;
+            return found && isUsed;
         }
 
-        /// <summary>
-        /// Revokes the token.
-        /// </summary>
-        /// <param name="token">The token.</param>
-        /// <param name="claims">The claims.</param>
+        /// <inheritdoc />
         public virtual bool RevokeToken(string token, List<Claim> claims)
         {
             var found = GetTokenState(token, claims, out _, out _);
 
-            if(found)
+            if (found)
             {
                 return false;
             }
 
-            return RevokeToken(token);
+            return RevokeTokenInternal(token);
         }
 
-        /// <summary>
-        /// Marks the token as used.
-        /// </summary>
-        /// <param name="token">The token.</param>
-        /// <param name="claims">The claims.</param>
+        /// <inheritdoc />
         public virtual void MarkTokenAsUsed(string token, List<Claim> claims)
         {
             if (!claims.IsTokenOneTimeUse())
@@ -284,44 +218,33 @@ namespace Net.Web.Api.Sdk.Implementations.Token
                 return;
             }
 
-            MarkTokenAsUsed(token);
+            MarkTokenAsUsedInternal(token);
         }
 
-        /// <summary>
-        /// Cleanups the token database.
-        /// </summary>
-        /// <returns>System.Int32.</returns>
+        /// <inheritdoc />
         public virtual int CleanupTokenDatabase()
         {
-            var count = 0;
-
             using (var db = new LiteDatabase(_tokenDataBase))
             {
                 var tokens = db.GetCollection<JwtTokenUsedOrRevoked>(TOKEN_DATA_COLLECTION);
                 var now = DateTime.UtcNow;
 
-                count = tokens.Delete(c => c.ExpirationDate.CompareTo(now) > 0);
+                return tokens.DeleteMany(c => c.ExpirationDate.CompareTo(now) > 0);
             }
-
-            return count;
         }
 
         #endregion
 
         #region Private Methods
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="JwtTokenService" /> class.
-        /// </summary>
-        /// <param name="token">The token.</param>
-        private bool RevokeToken(string token)
+        private bool RevokeTokenInternal(string token)
         {
             using (var db = new LiteDatabase(_tokenDataBase))
             {
                 var tokens = db.GetCollection<JwtTokenUsedOrRevoked>(TOKEN_DATA_COLLECTION);
-                var found = tokens.Find(c => c.Token.Equals(token)).FirstOrDefault();
+                var found = tokens.FindOne(c => c.Token == token);
 
-                if(found == null)
+                if (found == null)
                 {
                     var record = new JwtTokenUsedOrRevoked
                     {
@@ -338,16 +261,12 @@ namespace Net.Web.Api.Sdk.Implementations.Token
             return true;
         }
 
-        /// <summary>
-        /// Marks the token as used.
-        /// </summary>
-        /// <param name="token">The token.</param>
-        private void MarkTokenAsUsed(string token)
+        private void MarkTokenAsUsedInternal(string token)
         {
             using (var db = new LiteDatabase(_tokenDataBase))
             {
                 var tokens = db.GetCollection<JwtTokenUsedOrRevoked>(TOKEN_DATA_COLLECTION);
-                var found = tokens.Find(c => c.Token.Equals(token)).FirstOrDefault();
+                var found = tokens.FindOne(c => c.Token == token);
 
                 if (found == null)
                 {
@@ -364,14 +283,6 @@ namespace Net.Web.Api.Sdk.Implementations.Token
             }
         }
 
-        /// <summary>
-        /// Gets the state of the token.
-        /// </summary>
-        /// <param name="token">The token.</param>
-        /// <param name="claims">The claims.</param>
-        /// <param name="isRevoked">if set to <c>true</c> [is revoked].</param>
-        /// <param name="isUsed">if set to <c>true</c> [is used].</param>
-        /// <returns><c>true</c> if XXXX, <c>false</c> otherwise.</returns>
         private bool GetTokenState(string token, List<Claim> claims, out bool isRevoked, out bool isUsed)
         {
             isRevoked = false;
@@ -382,44 +293,29 @@ namespace Net.Web.Api.Sdk.Implementations.Token
                 return false;
             }
 
-            JwtTokenUsedOrRevoked found = null;
-
             using (var db = new LiteDatabase(_tokenDataBase))
             {
-                var tokens = db.GetCollection<JwtTokenUsedOrRevoked>(TOKEN_DATA_COLLECTION);
-                found = tokens.Find(c => c.Token.Equals(token)).FirstOrDefault();
+                var tokensCollection = db.GetCollection<JwtTokenUsedOrRevoked>(TOKEN_DATA_COLLECTION);
+                var found = tokensCollection.FindOne(c => c.Token == token);
 
                 if (found != null)
                 {
                     isUsed = found.IsUsed;
                     isRevoked = found.IsRevoked;
                 }
-            }
 
-            return found != null;
+                return found != null;
+            }
         }
 
-        /// <summary>
-        /// Gets all security keys.
-        /// </summary>
-        /// <returns>IEnumerable&lt;SecurityKey&gt;.</returns>
         private IEnumerable<SecurityKey> GetAllSecurityKeys()
         {
             return (from td in Tokens
-                where td.Value.ValidatingTokenCredential?.SecurityKey != null
-                select td.Value.ValidatingTokenCredential.SecurityKey).ToList();
+                    where td.Value.ValidatingTokenCredential?.SecurityKey != null
+                    select td.Value.ValidatingTokenCredential.SecurityKey).ToList();
         }
 
-        /// <summary>
-        /// Gets the token subject.
-        /// </summary>
-        /// <param name="definition">The definition.</param>
-        /// <param name="identityName">Name of the identity.</param>
-        /// <param name="customClaims">The custom claims.</param>
-        /// <returns>ClaimsIdentity.</returns>
-        private static ClaimsIdentity GetTokenSubject(JwtTokenModel definition, 
-            string identityName, 
-            IReadOnlyDictionary<string, string> customClaims)
+        private static ClaimsIdentity GetTokenSubject(JwtTokenModel definition, string identityName, IReadOnlyDictionary<string, string> customClaims)
         {
             var identity = new ClaimsIdentity("Bearer");
 
@@ -435,40 +331,30 @@ namespace Net.Web.Api.Sdk.Implementations.Token
                 return identity;
             }
 
-            var internals = Enum.GetValues(typeof(TokenInternalClaimNames)).Cast<TokenInternalClaimNames>().Select(v => v.ToString()).ToList();
+            var internals = Enum.GetValues(typeof(TokenInternalClaimNames))
+                .Cast<TokenInternalClaimNames>()
+                .Select(v => v.ToString())
+                .ToList();
 
             foreach (var claim in customClaims)
             {
-                if (internals.Contains(claim.Key))
+                if (!internals.Contains(claim.Key))
                 {
-                    continue;
+                    identity.AddClaim(new Claim(claim.Key, claim.Value));
                 }
-
-                identity.AddClaim(new Claim(claim.Key, claim.Value));
             }
 
             return identity;
         }
 
-        /// <summary>
-        /// Formats the token.
-        /// </summary>
-        /// <param name="generatedToken">The generated token.</param>
-        /// <param name="definition">The definition.</param>
-        /// <returns>System.String.</returns>
         private static string FormatToken(string generatedToken, JwtTokenModel definition)
         {
-            return !definition.IsTokenBase64Encoded 
-                ? generatedToken 
+            return !definition.IsTokenBase64Encoded
+                ? generatedToken
                 : Convert.ToBase64String(Encoding.UTF8.GetBytes(generatedToken)).ToSecuredEncoded64Padding();
         }
 
-        /// <summary>
-        /// Loads the token list.
-        /// </summary>
-        /// <param name="tokenConfigurationSection">The token configuration section.</param>
-        /// <returns>Dictionary&lt;System.String, ApiTokenModel&gt;.</returns>
-        private static Dictionary<string, JwtTokenModel> LoadTokenList(TokenConfigurationSection tokenConfigurationSection)
+        private static Dictionary<string, JwtTokenModel> LoadTokenList(TokenConfigurationSection tokenConfigurationSection, string rootPath)
         {
             var tokens = new Dictionary<string, JwtTokenModel>();
 
@@ -482,33 +368,35 @@ namespace Net.Web.Api.Sdk.Implementations.Token
                     continue;
                 }
 
-                tokens.Add(tokenName, new JwtTokenModel(tokenName, definition));
+                tokens.Add(tokenName, new JwtTokenModel(tokenName, definition, rootPath));
             }
 
             return tokens;
         }
 
-        /// <summary>
-        /// Loads all tokens.
-        /// </summary>
         private void LoadAllTokens()
         {
             Tokens = new Dictionary<string, JwtTokenModel>();
 
-            var rootPath = HttpContext.Current.Server.MapPath(ROOT_PATH);
-            var configurationFileList = Directory.GetFiles(rootPath, TOKEN_CONFIG_FILE_PATTERN, SearchOption.AllDirectories);
+            var configurationFileList = Directory.GetFiles(_rootPath, TOKEN_CONFIG_FILE_PATTERN, SearchOption.AllDirectories);
 
             if (!configurationFileList.Any())
             {
                 return;
-            }            
+            }
 
             foreach (var configurationFile in configurationFileList)
             {
                 var configMap = new ExeConfigurationFileMap { ExeConfigFilename = configurationFile };
                 var config = ConfigurationManager.OpenMappedExeConfiguration(configMap, ConfigurationUserLevel.None);
-                var tokenSection = (TokenConfigurationSection) config.GetSection(TokenConfigurationSection.SECTION_NAME);
-                var tokenList = LoadTokenList(tokenSection);
+                var tokenSection = (TokenConfigurationSection)config.GetSection(TokenConfigurationSection.SECTION_NAME);
+
+                if (tokenSection == null)
+                {
+                    continue;
+                }
+
+                var tokenList = LoadTokenList(tokenSection, _rootPath);
 
                 foreach (var token in tokenList)
                 {
@@ -524,15 +412,11 @@ namespace Net.Web.Api.Sdk.Implementations.Token
             }
         }
 
-        /// <summary>
-        /// Setups the token database.
-        /// </summary>
         private void SetupTokenDatabase()
         {
-            var rootPath = HttpContext.Current.Server.MapPath(ROOT_PATH);
-            var dataBasePath = Path.Combine(rootPath, "db");
+            var dataBasePath = Path.Combine(_rootPath, "db");
 
-            if(!Directory.Exists(dataBasePath))
+            if (!Directory.Exists(dataBasePath))
             {
                 Directory.CreateDirectory(dataBasePath);
             }
@@ -540,7 +424,6 @@ namespace Net.Web.Api.Sdk.Implementations.Token
             _tokenDataBase = Path.Combine(dataBasePath, "TokenDataBase.db");
 
             var mapper = BsonMapper.Global;
-
             mapper.Entity<JwtTokenUsedOrRevoked>().Id(c => c.Id);
         }
 
