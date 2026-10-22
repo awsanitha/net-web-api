@@ -1,39 +1,40 @@
-﻿using Net.Web.Api.Sdk.Documentation.Attributes;
-using Swashbuckle.Swagger;
+using Microsoft.OpenApi.Models;
+using Net.Web.Api.Sdk.Documentation.Attributes;
+using Swashbuckle.AspNetCore.SwaggerGen;
 using System.Linq;
-using System.Web.Http.Description;
 
 namespace Net.Web.Api.Sdk.Documentation.Filters
 {
     /// <inheritdoc />
-    /// <summary>
-    /// Class SwaggerConsumesFilter.
-    /// </summary>
     public class SwaggerConsumesFilter : IOperationFilter
     {
-        #region IOperationFilter Implementations
-
-        /// <inheritdoc />
-        /// <summary>
-        /// Applies the specified operation.
-        /// </summary>
-        /// <param name="operation">The operation.</param>
-        /// <param name="schemaRegistry">The schema registry.</param>
-        /// <param name="apiDescription">The API description.</param>
-        /// <exception cref="T:System.NotImplementedException"></exception>
-        public void Apply(Operation operation, SchemaRegistry schemaRegistry, ApiDescription apiDescription)
+        public void Apply(OpenApiOperation operation, OperationFilterContext context)
         {
-            var attribute = apiDescription.GetControllerAndActionAttributes<SwaggerConsumesAttribute>().SingleOrDefault();
+            var attribute = context.MethodInfo.GetCustomAttributes(typeof(SwaggerConsumesAttribute), true)
+                .Cast<SwaggerConsumesAttribute>()
+                .SingleOrDefault();
 
             if (attribute == null)
             {
-                return;
+                attribute = context.MethodInfo.DeclaringType?
+                    .GetCustomAttributes(typeof(SwaggerConsumesAttribute), true)
+                    .Cast<SwaggerConsumesAttribute>()
+                    .SingleOrDefault();
             }
 
-            operation.consumes.Clear();
-            operation.consumes = attribute.ContentTypes.ToList();
-        }
+            if (attribute == null || !attribute.ContentTypes.Any())
+                return;
 
-        #endregion
+            if (operation.RequestBody == null)
+                return;
+
+            var existingKeys = operation.RequestBody.Content.Keys.ToList();
+
+            foreach (var key in existingKeys)
+            {
+                if (!attribute.ContentTypes.Contains(key))
+                    operation.RequestBody.Content.Remove(key);
+            }
+        }
     }
 }

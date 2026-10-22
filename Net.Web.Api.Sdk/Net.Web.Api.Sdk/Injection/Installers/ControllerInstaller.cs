@@ -1,33 +1,16 @@
-﻿using System;
-using System.Web.Http;
-using Castle.MicroKernel.Registration;
-using Castle.MicroKernel.SubSystems.Configuration;
-using Castle.Windsor;
+using System.Reflection;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Net.Web.Api.Sdk.Injection.Installers
 {
-    /// <inheritdoc />
     /// <summary>
-    /// Class ControllerInstaller.
+    /// Class ControllerInstaller. Registers controllers from an assembly with IServiceCollection.
     /// </summary>
-    /// <seealso cref="T:Castle.MicroKernel.Registration.IWindsorInstaller" />
-    public class ControllerInstaller : IWindsorInstaller
+    public class ControllerInstaller
     {
-        #region IWindsorInstaller Implementations
-
-        /// <inheritdoc />
-        /// <summary>
-        /// Performs the installation in the <see cref="T:Castle.Windsor.IWindsorContainer" />.
-        /// </summary>
-        /// <param name="container">The container.</param>
-        /// <param name="store">The configuration store.</param>
-        public void Install(IWindsorContainer container, IConfigurationStore store)
+        public void Install(IMvcBuilder mvcBuilder, Assembly assembly)
         {
-            container.Register(Classes.FromAssemblyInDirectory(new AssemblyFilter(AppDomain.CurrentDomain.RelativeSearchPath))
-                .BasedOn<ApiController>()
-                .LifestylePerWebRequest());
+            mvcBuilder.AddApplicationPart(assembly);
         }
-
-        #endregion
     }
 }
