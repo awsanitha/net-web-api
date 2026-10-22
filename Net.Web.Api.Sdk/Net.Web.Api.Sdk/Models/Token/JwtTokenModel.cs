@@ -5,7 +5,6 @@ using System.Linq;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Web;
 using Microsoft.IdentityModel.Tokens;
 using Net.Web.Api.Sdk.Configurations.Token;
 using Newtonsoft.Json;
@@ -415,7 +414,7 @@ namespace Net.Web.Api.Sdk.Models.Token
         /// <returns>System.String.</returns>
         private static string SearchCertificate(string name)
         {
-            var rootPath = HttpContext.Current.Server.MapPath(@"\");
+            var rootPath = AppContext.BaseDirectory;
             var certificate = Directory.GetFiles(rootPath, name, SearchOption.AllDirectories).FirstOrDefault();
 
             return certificate;
