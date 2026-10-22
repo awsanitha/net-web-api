@@ -1,27 +1,21 @@
-﻿using Net.Web.Api.Sdk.Common.Http;
-using Net.Web.Api.Sdk.Extensions;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Serialization;
+﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
 using System;
 using System.Collections.Generic;
 using System.Net;
-using System.Net.Http.Formatting;
 using System.Security.Principal;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Web.Http.Filters;
 
 namespace Net.Web.Api.Sdk.Security.Attributes
 {
     /// <summary>
     /// Class BasicAuthorizeAttribute.
-    /// Implements the <see cref="Attribute" />
-    /// Implements the <see cref="IAuthenticationFilter" />
+    /// Implements <see cref="Attribute" /> and <see cref="IAsyncAuthorizationFilter" />
     /// </summary>
-    /// <seealso cref="Attribute" />
-    /// <seealso cref="IAuthenticationFilter" />
-    public abstract class BasicAuthorizeAttribute : Attribute, IAuthenticationFilter
+    public abstract class BasicAuthorizeAttribute : Attribute, IAsyncAuthorizationFilter
     {
         #region Internal Constants
 
@@ -53,24 +47,7 @@ namespace Net.Web.Api.Sdk.Security.Attributes
 
         #endregion
 
-        #region Private Properties
-
-        /// <summary>
-        /// The default formatter
-        /// </summary>
-        private static readonly JsonMediaTypeFormatter _defaultFormatter = new JsonMediaTypeFormatter
-        {
-            SerializerSettings =
-            {
-                DateFormatHandling = DateFormatHandling.MicrosoftDateFormat,
-                DateTimeZoneHandling = DateTimeZoneHandling.Local,
-                ContractResolver = new CamelCasePropertyNamesContractResolver()
-            }
-        };
-
-        #endregion
-
-        #region Abscrtact Methods
+        #region Abstract Methods
 
         /// <summary>
         /// Authenticates the asynchronous.
@@ -84,89 +61,63 @@ namespace Net.Web.Api.Sdk.Security.Attributes
 
         #endregion
 
-        #region Attribute Overrides
+        #region IAsyncAuthorizationFilter Implementations
 
         /// <inheritdoc />
-        /// <summary>
-        /// Gets or sets a value indicating whether more than one instance of the indicated attribute can be specified for a single program element.
-        /// </summary>
-        /// <value><c>true</c> if [allow multiple]; otherwise, <c>false</c>.</value>
-        public virtual bool AllowMultiple => false;
-
-        #endregion
-
-        #region IAuthenticationFilter Implementations
-
-        /// <summary>
-        /// authenticate as an asynchronous operation.
-        /// </summary>
-        /// <param name="context">The authentication context.</param>
-        /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
-        /// <returns>A Task that will perform authentication.</returns>
-        public async Task AuthenticateAsync(HttpAuthenticationContext context, CancellationToken cancellationToken)
+        public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
         {
-            var request = context.Request;
-            var authorization = request.Headers.Authorization;
+            var request = context.HttpContext.Request;
+            var authHeader = request.Headers.Authorization.ToString();
 
-            if (authorization == null)
+            if (string.IsNullOrEmpty(authHeader))
             {
-                context.ErrorResult = new ResponseActionResult(request, HttpStatusCode.Forbidden);
-
+                context.Result = new StatusCodeResult(StatusCodes.Status403Forbidden);
                 return;
             }
 
-            if (!AUTHORIZATION_BASIC.Equals(authorization.Scheme))
+            if (!authHeader.StartsWith(AUTHORIZATION_BASIC + " ", StringComparison.OrdinalIgnoreCase))
             {
-                context.ErrorResult = new ResponseActionResult(request, HttpStatusCode.Forbidden);
-
+                context.Result = new StatusCodeResult(StatusCodes.Status403Forbidden);
                 return;
             }
 
-            if (string.IsNullOrEmpty(authorization.Parameter))
-            {
-                context.ErrorResult = new ResponseActionResult(request, HttpStatusCode.Unauthorized);
+            var parameter = authHeader.Substring(AUTHORIZATION_BASIC.Length + 1).Trim();
 
+            if (string.IsNullOrEmpty(parameter))
+            {
+                context.Result = new StatusCodeResult(StatusCodes.Status401Unauthorized);
+                SetChallenge(context);
                 return;
             }
 
-            var userNameAndPasword = ExtractUserNameAndPassword(authorization.Parameter);
+            var userNameAndPassword = ExtractUserNameAndPassword(parameter);
 
-            if (userNameAndPasword == null)
+            if (userNameAndPassword == null)
             {
-                context.ErrorResult = new ResponseActionResult(request, HttpStatusCode.Unauthorized);
-
+                context.Result = new StatusCodeResult(StatusCodes.Status401Unauthorized);
+                SetChallenge(context);
                 return;
             }
 
             var authenticationResult = new List<string>();
-            var userName = userNameAndPasword.Item1;
-            var password = userNameAndPasword.Item2;
-            var principal = await AuthenticateAsync(userName, password, cancellationToken, authenticationResult);
+            var principal = await AuthenticateAsync(
+                userNameAndPassword.Item1,
+                userNameAndPassword.Item2,
+                context.HttpContext.RequestAborted,
+                authenticationResult);
 
             if (principal == null)
             {
-                context.ErrorResult = new ResponseActionResult(request, HttpStatusCode.Unauthorized, authenticationResult);
+                context.Result = new ObjectResult(authenticationResult)
+                {
+                    StatusCode = StatusCodes.Status401Unauthorized
+                };
+                SetChallenge(context);
             }
             else
             {
-                context.Principal = principal;
+                context.HttpContext.User = (System.Security.Claims.ClaimsPrincipal)principal;
             }
-        }
-
-        /// <summary>
-        /// Challenges the asynchronous.
-        /// </summary>
-        /// <param name="context">The context.</param>
-        /// <param name="cancellationToken">The cancellation token.</param>
-        /// <returns>Task.</returns>
-        public Task ChallengeAsync(HttpAuthenticationChallengeContext context, CancellationToken cancellationToken)
-        {
-            if (EnableChallenge)
-            {
-                Challenge(context);
-            }
-
-            return Task.FromResult(0);
         }
 
         #endregion
@@ -174,10 +125,8 @@ namespace Net.Web.Api.Sdk.Security.Attributes
         #region Private Methods
 
         /// <summary>
-        /// Extracts the user name and password.
+        /// Extracts the user name and password from the Basic auth parameter.
         /// </summary>
-        /// <param name="authorizationParameter">The authorization parameter.</param>
-        /// <returns>TupleModel&lt;System.String, System.String&gt;.</returns>
         private static Tuple<string, string> ExtractUserNameAndPassword(string authorizationParameter)
         {
             byte[] credentialBytes;
@@ -192,9 +141,7 @@ namespace Net.Web.Api.Sdk.Security.Attributes
             }
 
             var encoding = Encoding.ASCII;
-
             encoding = (Encoding)encoding.Clone();
-
             encoding.DecoderFallback = DecoderFallback.ExceptionFallback;
 
             string decodedCredentials;
@@ -227,14 +174,24 @@ namespace Net.Web.Api.Sdk.Security.Attributes
         }
 
         /// <summary>
-        /// Challenges the specified context.
+        /// Sets the WWW-Authenticate challenge header on the response.
         /// </summary>
-        /// <param name="context">The context.</param>
-        private void Challenge(HttpAuthenticationChallengeContext context)
+        private void SetChallenge(AuthorizationFilterContext context)
         {
-            var parameter = string.IsNullOrEmpty(Realm) ? null : $@"{REALM}="" + Realm + @""";
+            if (!EnableChallenge)
+            {
+                return;
+            }
 
-            context.ChallengeWith(AUTHORIZATION_BASIC, parameter);
+            var parameter = string.IsNullOrEmpty(Realm)
+                ? null
+                : $@"{REALM}=""{Realm}""";
+
+            var challengeValue = parameter == null
+                ? AUTHORIZATION_BASIC
+                : $"{AUTHORIZATION_BASIC} {parameter}";
+
+            context.HttpContext.Response.Headers.WWWAuthenticate = challengeValue;
         }
 
         #endregion
