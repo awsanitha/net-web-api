@@ -14,11 +14,14 @@
     <NoWarn>$(NoWarn);CS1591;CS1573</NoWarn>
     <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
     <Title>.NET Web API SDK</Title>
-    <Description>A SDK that provides JWT token security, versioning, validation and Swagger documentation for ASP.NET Core Web APIs.</Description>
-    <Company>Net.Web.Api.Sdk</Company>
-    <Copyright>Copyright © Net.Web.Api.Sdk</Copyright>
+    <AssemblyTitle>Development kit for WEP API</AssemblyTitle>
+    <Description>Development kit for WEP API</Description>
+    <Company>Rascalon Robert</Company>
+    <Copyright>Copyright © 2019</Copyright>
+    <ComVisible>false</ComVisible>
     <Version>1.0.0</Version>
-    <FileVersion>1.0.0.0</FileVersion>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.1.2.0</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>

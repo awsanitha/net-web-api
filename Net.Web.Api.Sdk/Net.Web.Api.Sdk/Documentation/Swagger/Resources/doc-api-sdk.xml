@@ -74,6 +74,22 @@
             <param name="validationContext">The context information about the validation operation.</param>
             <returns>An instance of the <see cref="T:System.ComponentModel.DataAnnotations.ValidationResult" /> class.</returns>
         </member>
+        <member name="M:Net.Web.Api.Sdk.Attributes.Validations.UploadFileAttribute.ValidateFile(System.String,System.String,System.Int64)">
+            <summary>
+            Validates the MIME type and the size of an uploaded file.
+            </summary>
+            <param name="name">The display name of the validated member.</param>
+            <param name="mimeType">The MIME type of the file.</param>
+            <param name="length">The length of the file, in bytes.</param>
+            <returns>An instance of the <see cref="T:System.ComponentModel.DataAnnotations.ValidationResult" /> class.</returns>
+        </member>
+        <member name="M:Net.Web.Api.Sdk.Attributes.Validations.UploadFileAttribute.ValidateSize(System.Int64)">
+            <summary>
+            Validates the size of an uploaded file against the configured limit.
+            </summary>
+            <param name="length">The length of the file, in bytes.</param>
+            <returns>An instance of the <see cref="T:System.ComponentModel.DataAnnotations.ValidationResult" /> class.</returns>
+        </member>
         <member name="T:Net.Web.Api.Sdk.Common.Constants.ConsumerProducerConstants">
             <summary>
             Class ConsumerProducerConstants.
@@ -241,6 +257,51 @@
             </summary>
             <param name="challenge">The challenge.</param>
             <param name="innerResult">The inner result.</param>
+        </member>
+        <member name="T:Net.Web.Api.Sdk.Common.Http.ErrorDetailMiddleware">
+            <summary>
+            Class ErrorDetailMiddleware.
+            Replacement of the Web API <c>HttpConfiguration.IncludeErrorDetailPolicy = IncludeErrorDetailPolicy.Always</c>
+            setting: an unhandled exception is returned to the caller with its full detail
+            (message, exception type, stack trace and inner exceptions), in every environment,
+            using the same <c>HttpError</c> response shape Web API produced.
+            </summary>
+        </member>
+        <member name="F:Net.Web.Api.Sdk.Common.Http.ErrorDetailMiddleware.ERROR_MESSAGE">
+            <summary>
+            The generic message Web API used as the <c>Message</c> member of an error response.
+            </summary>
+        </member>
+        <member name="F:Net.Web.Api.Sdk.Common.Http.ErrorDetailMiddleware._next">
+            <summary>
+            The next middleware in the pipeline.
+            </summary>
+        </member>
+        <member name="F:Net.Web.Api.Sdk.Common.Http.ErrorDetailMiddleware._serializerSettings">
+            <summary>
+            The serializer settings used for the error payload.
+            </summary>
+        </member>
+        <member name="M:Net.Web.Api.Sdk.Common.Http.ErrorDetailMiddleware.#ctor(Microsoft.AspNetCore.Http.RequestDelegate,Newtonsoft.Json.JsonSerializerSettings)">
+            <summary>
+            Initializes a new instance of the <see cref="T:Net.Web.Api.Sdk.Common.Http.ErrorDetailMiddleware"/> class.
+            </summary>
+            <param name="next">The next middleware in the pipeline.</param>
+            <param name="serializerSettings">The serializer settings, the SDK defaults when not supplied.</param>
+        </member>
+        <member name="M:Net.Web.Api.Sdk.Common.Http.ErrorDetailMiddleware.InvokeAsync(Microsoft.AspNetCore.Http.HttpContext)">
+            <summary>
+            Invokes the middleware, returning the full detail of an unhandled exception.
+            </summary>
+            <param name="context">The HTTP context.</param>
+            <returns>A task that represents the asynchronous invoke operation.</returns>
+        </member>
+        <member name="M:Net.Web.Api.Sdk.Common.Http.ErrorDetailMiddleware.BuildError(System.Exception)">
+            <summary>
+            Builds the Web API style error detail for the specified exception.
+            </summary>
+            <param name="exception">The exception.</param>
+            <returns>The error detail.</returns>
         </member>
         <member name="T:Net.Web.Api.Sdk.Common.Http.ResponseActionResult">
             <summary>
@@ -1529,6 +1590,12 @@
         <member name="F:Net.Web.Api.Sdk.Initialization.NetWebApiSdkExtensions.SWAGGER_ROUTE_PREFIX">
             <summary>
             The swagger user interface route prefix
+            </summary>
+        </member>
+        <member name="F:Net.Web.Api.Sdk.Initialization.NetWebApiSdkExtensions._serializerSettings">
+            <summary>
+            The JSON serializer settings supplied to <see cref="M:Net.Web.Api.Sdk.Initialization.NetWebApiSdkExtensions.AddNetWebApiSdk(Microsoft.Extensions.DependencyInjection.IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration,Microsoft.AspNetCore.Hosting.IWebHostEnvironment,Newtonsoft.Json.JsonSerializerSettings)" />, reused by the
+            pipeline so the error detail payload is serialized exactly like every other SDK response.
             </summary>
         </member>
         <member name="M:Net.Web.Api.Sdk.Initialization.NetWebApiSdkExtensions.AddNetWebApiSdk(Microsoft.Extensions.DependencyInjection.IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration,Microsoft.AspNetCore.Hosting.IWebHostEnvironment,Newtonsoft.Json.JsonSerializerSettings)">

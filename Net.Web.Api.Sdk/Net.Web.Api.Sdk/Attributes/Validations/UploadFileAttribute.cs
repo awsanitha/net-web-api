@@ -65,19 +65,66 @@ namespace Net.Web.Api.Sdk.Attributes.Validations
                 ? validationContext.MemberName
                 : validationContext.DisplayName;
 
-            if (!(value is IFormFile fileInformation))
+            // A missing value is the concern of [Required], not of this attribute.
+            if (value == null)
             {
                 return ValidationResult.Success;
             }
 
-            var mimeType = fileInformation.ContentType;
-
-            if (!AllowedMimeTypes.Contains(mimeType))
+            switch (value)
             {
-                return new ValidationResult(string.Format(Resources.MimeTypeNotAllowedText, name, mimeType));
-            }
+                case IFormFile file:
+                    return ValidateFile(name, file.ContentType, file.Length);
 
-            var length = fileInformation.Length;
+                case IEnumerable<IFormFile> files:
+                    foreach (var file in files)
+                    {
+                        var result = ValidateFile(name, file?.ContentType, file?.Length ?? 0);
+
+                        if (result != ValidationResult.Success)
+                        {
+                            return result;
+                        }
+                    }
+
+                    return ValidationResult.Success;
+
+                case byte[] buffer:
+                    // No MIME type is carried by a raw buffer, the size limit still applies.
+                    return ValidateSize(buffer.LongLength);
+
+                default:
+                    // The legacy attribute cast the value to HttpFile and threw on anything else.
+                    // Never pass an unrecognized value silently: that would skip MIME and size checks.
+                    return new ValidationResult(string.Format(Resources.MimeTypeNotAllowedText, name, value.GetType().Name));
+            }
+        }
+
+        #endregion
+
+        #region Private Methods
+
+        /// <summary>
+        /// Validates the MIME type and the size of an uploaded file.
+        /// </summary>
+        /// <param name="name">The display name of the validated member.</param>
+        /// <param name="mimeType">The MIME type of the file.</param>
+        /// <param name="length">The length of the file, in bytes.</param>
+        /// <returns>An instance of the <see cref="ValidationResult" /> class.</returns>
+        private ValidationResult ValidateFile(string name, string mimeType, long length)
+        {
+            return !AllowedMimeTypes.Contains(mimeType)
+                ? new ValidationResult(string.Format(Resources.MimeTypeNotAllowedText, name, mimeType))
+                : ValidateSize(length);
+        }
+
+        /// <summary>
+        /// Validates the size of an uploaded file against the configured limit.
+        /// </summary>
+        /// <param name="length">The length of the file, in bytes.</param>
+        /// <returns>An instance of the <see cref="ValidationResult" /> class.</returns>
+        private ValidationResult ValidateSize(long length)
+        {
             var friendlyLength = ByteSize.FromBytes(length).ToString("#.#");
             var friendlyLimit = ByteSize.FromBytes(FileSizeLimit).ToString("#.#");
 

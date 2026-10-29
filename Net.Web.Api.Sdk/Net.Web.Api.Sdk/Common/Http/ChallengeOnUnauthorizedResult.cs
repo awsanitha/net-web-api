@@ -41,27 +41,37 @@ namespace Net.Web.Api.Sdk.Common.Http
         {
             var response = context.HttpContext.Response;
 
+            // The challenge header must be registered BEFORE the inner result writes the body:
+            // once the response has started, header mutations are ignored (or throw).
+            if (Challenge != null)
+            {
+                response.OnStarting(() =>
+                {
+                    if (response.StatusCode != (int)HttpStatusCode.Unauthorized)
+                    {
+                        return Task.CompletedTask;
+                    }
+
+                    var existing = response.Headers[HeaderNames.WWWAuthenticate];
+
+                    foreach (var value in existing)
+                    {
+                        if (!string.IsNullOrEmpty(value) && value.StartsWith(Challenge.Scheme))
+                        {
+                            return Task.CompletedTask;
+                        }
+                    }
+
+                    response.Headers.Append(HeaderNames.WWWAuthenticate, Challenge.ToString());
+
+                    return Task.CompletedTask;
+                });
+            }
+
             if (InnerResult != null)
             {
                 await InnerResult.ExecuteResultAsync(context);
             }
-
-            if (response.StatusCode != (int)HttpStatusCode.Unauthorized || Challenge == null)
-            {
-                return;
-            }
-
-            var existing = response.Headers[HeaderNames.WWWAuthenticate];
-
-            foreach (var value in existing)
-            {
-                if (!string.IsNullOrEmpty(value) && value.StartsWith(Challenge.Scheme))
-                {
-                    return;
-                }
-            }
-
-            response.Headers.Append(HeaderNames.WWWAuthenticate, Challenge.ToString());
         }
 
         #endregion

@@ -81,6 +81,16 @@ namespace Net.Web.Api.Sdk.Initialization
 
         #endregion
 
+        #region Private Fields
+
+        /// <summary>
+        /// The JSON serializer settings supplied to <see cref="AddNetWebApiSdk" />, reused by the
+        /// pipeline so the error detail payload is serialized exactly like every other SDK response.
+        /// </summary>
+        private static JsonSerializerSettings _serializerSettings;
+
+        #endregion
+
         #region Public Extensions
 
         /// <summary>
@@ -106,6 +116,8 @@ namespace Net.Web.Api.Sdk.Initialization
 
             IdentityModelEventSource.ShowPII = true;
 
+            _serializerSettings = serializerSettings;
+
             services.AddHttpContextAccessor();
 
             services.SetupInjection();
@@ -129,8 +141,17 @@ namespace Net.Web.Api.Sdk.Initialization
 
             PublishEmbeddedResources();
 
+            // Replacement of the Web API IncludeErrorDetailPolicy.Always setting: must sit at the
+            // head of the pipeline so it observes exceptions thrown by every component below it.
+            app.UseMiddleware<ErrorDetailMiddleware>(_serializerSettings ?? ResponseActionResult.DefaultSerializerSettings);
+
             app.UseStaticFiles();
-            app.UseCors(SdkCorsConstants.DEFAULT_POLICY_NAME);
+
+            // Parity with the legacy per-controller [EnableCors("*", "*", "*", SupportsCredentials = true)]:
+            // the CORS middleware is present, but the named SDK policy is applied through the
+            // [EnableCors(SdkCorsConstants.DEFAULT_POLICY_NAME)] attribute on the SDK controllers only,
+            // so a host application's own endpoints are not implicitly made cross-origin.
+            app.UseCors();
             app.UseMiddleware<JwtTokenHandler>();
 
             // Replaces the Windsor per-web-request lifestyle: controllers are registered with a
@@ -154,9 +175,20 @@ namespace Net.Web.Api.Sdk.Initialization
                 }
 
                 options.RoutePrefix = SWAGGER_ROUTE_PREFIX;
+
+                // NOTE: the legacy EnableSwaggerUi CustomAsset("index", ...) call is deliberately NOT
+                // reproduced. The embedded index.html is the Swagger-UI 2.x shell shipped by Swashbuckle
+                // 5.x for ASP.NET: it loads jquery/backbone/swagger-ui-min-js assets that no longer exist
+                // and uses placeholders (%(StylesheetIncludes), %(ValidatorUrl)) the ASP.NET Core
+                // middleware does not substitute, so serving it renders an empty page. The SDK branding
+                // it carried lives in the override stylesheet and script injected below, which apply to
+                // the stock Swashbuckle.AspNetCore shell.
                 options.InjectStylesheet($"/{KIT_UI_STYLESHEET}");
                 options.InjectJavascript($"/{KIT_UI_SCRIPT}");
-                options.EnableValidator(null);
+
+                // Parity with the legacy DisableValidator(): no validator badge and the specification
+                // is never posted to the public validator.swagger.io service.
+                options.ConfigObject.ValidatorUrl = null;
             });
 
             app.MapControllers();
