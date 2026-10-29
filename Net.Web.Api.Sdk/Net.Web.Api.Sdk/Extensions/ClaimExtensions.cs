@@ -30,8 +30,9 @@ namespace Net.Web.Api.Sdk.Extensions
         /// <returns>Dictionary&lt;System.String, System.String&gt;.</returns>
         public static Dictionary<string, string> ToClaimDictionary(this IEnumerable<Claim> claims, bool shortNameOnly = false)
         {
-            return claims?.DistinctBy(c=>c.Type).ToDictionary(claim => claim.Type.ShortName(shortNameOnly), claim => claim.Value) 
-                   ?? new Dictionary<string, string>();
+            return claims != null
+                ? ListExtensions.DistinctBy(claims, c => c.Type).ToDictionary(claim => claim.Type.ShortName(shortNameOnly), claim => claim.Value)
+                : new Dictionary<string, string>();
         }
 
         /// <summary>

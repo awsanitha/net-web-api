@@ -1,28 +1,30 @@
-﻿using Newtonsoft.Json;
-using Newtonsoft.Json.Serialization;
 using System.Net;
-using System.Net.Http;
-using System.Net.Http.Formatting;
-using System.Threading;
+using System.Text;
 using System.Threading.Tasks;
-using System.Web.Http;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
 
 namespace Net.Web.Api.Sdk.Common.Http
 {
     /// <summary>
     /// Class ResponseActionResult.
-    /// Implements the <see cref="IHttpActionResult" />
+    /// Implements the <see cref="IActionResult" />
     /// </summary>
-    /// <seealso cref="IHttpActionResult" />
-    public class ResponseActionResult : IHttpActionResult
+    /// <seealso cref="IActionResult" />
+    public class ResponseActionResult : IActionResult
     {
-        #region Private Properties
+        #region Private Constants
 
         /// <summary>
-        /// The request
+        /// The content type
         /// </summary>
-        private readonly HttpRequestMessage _request;
+        private const string CONTENT_TYPE = "application/json; charset=utf-8";
 
+        #endregion
+
+        #region Private Properties
 
         /// <summary>
         /// The status code
@@ -35,22 +37,29 @@ namespace Net.Web.Api.Sdk.Common.Http
         private readonly object _content;
 
         /// <summary>
-        /// The formatter
+        /// The serializer settings
         /// </summary>
-        private readonly JsonMediaTypeFormatter _formatter;
+        private readonly JsonSerializerSettings _serializerSettings;
 
         /// <summary>
-        /// The default formatter
+        /// The default serializer settings
         /// </summary>
-        private static readonly JsonMediaTypeFormatter _defaultFormatter = new JsonMediaTypeFormatter
+        private static readonly JsonSerializerSettings _defaultSerializerSettings = new JsonSerializerSettings
         {
-            SerializerSettings =
-            {
-                DateFormatHandling = DateFormatHandling.MicrosoftDateFormat,
-                DateTimeZoneHandling = DateTimeZoneHandling.Local,
-                ContractResolver = new CamelCasePropertyNamesContractResolver()
-            }
+            DateFormatHandling = DateFormatHandling.MicrosoftDateFormat,
+            DateTimeZoneHandling = DateTimeZoneHandling.Local,
+            ContractResolver = new CamelCasePropertyNamesContractResolver()
         };
+
+        #endregion
+
+        #region Public Properties
+
+        /// <summary>
+        /// Gets the default serializer settings used by the SDK responses.
+        /// </summary>
+        /// <value>The default serializer settings.</value>
+        public static JsonSerializerSettings DefaultSerializerSettings => _defaultSerializerSettings;
 
         #endregion
 
@@ -59,32 +68,41 @@ namespace Net.Web.Api.Sdk.Common.Http
         /// <summary>
         /// Initializes a new instance of the <see cref="ResponseActionResult" /> class.
         /// </summary>
-        /// <param name="request">The request.</param>
         /// <param name="statusCode">The status code.</param>
         /// <param name="content">The content.</param>
-        /// <param name="formatter">The formatter.</param>
-        public ResponseActionResult(HttpRequestMessage request, HttpStatusCode statusCode, object content = null, JsonMediaTypeFormatter formatter = null)
+        /// <param name="serializerSettings">The serializer settings.</param>
+        public ResponseActionResult(HttpStatusCode statusCode, object content = null, JsonSerializerSettings serializerSettings = null)
         {
-            _request = request;
             _statusCode = statusCode;
             _content = content;
-            _formatter = formatter ?? _defaultFormatter;
+            _serializerSettings = serializerSettings ?? _defaultSerializerSettings;
         }
 
         #endregion
 
-        #region IHttpActionResult Implementations
+        #region IActionResult Implementations
 
         /// <summary>
-        /// Creates an <see cref="T:System.Net.Http.HttpResponseMessage" /> asynchronously.
+        /// Executes the result operation of the action method asynchronously.
         /// </summary>
-        /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
-        /// <returns>A task that, when completed, contains the <see cref="T:System.Net.Http.HttpResponseMessage" />.</returns>
-        public Task<HttpResponseMessage> ExecuteAsync(CancellationToken cancellationToken)
+        /// <param name="context">The action context.</param>
+        /// <returns>A task that represents the asynchronous execute operation.</returns>
+        public async Task ExecuteResultAsync(ActionContext context)
         {
-            var response = _request.CreateResponse(_statusCode, _content, _formatter);
+            var response = context.HttpContext.Response;
 
-            return Task.FromResult(response);
+            response.StatusCode = (int)_statusCode;
+
+            if (_content == null)
+            {
+                return;
+            }
+
+            response.ContentType = CONTENT_TYPE;
+
+            var payload = JsonConvert.SerializeObject(_content, _serializerSettings);
+
+            await response.WriteAsync(payload, Encoding.UTF8);
         }
 
         #endregion

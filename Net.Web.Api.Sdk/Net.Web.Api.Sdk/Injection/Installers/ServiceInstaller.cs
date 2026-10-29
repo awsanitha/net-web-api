@@ -6,6 +6,7 @@ using Castle.MicroKernel.Registration;
 using Castle.MicroKernel.SubSystems.Configuration;
 using Castle.Windsor;
 using Net.Web.Api.Sdk.Injection.Attributes;
+using Net.Web.Api.Sdk.Injection.Filters;
 
 namespace Net.Web.Api.Sdk.Injection.Installers
 {
@@ -48,7 +49,7 @@ namespace Net.Web.Api.Sdk.Injection.Installers
         /// <param name="store">The configuration store.</param>
         public void Install(IWindsorContainer container, IConfigurationStore store)
         {
-            var assemblyDescriptor = Classes.FromAssemblyInDirectory(new AssemblyFilter(AppDomain.CurrentDomain.RelativeSearchPath));
+            var assemblyDescriptor = Classes.FromAssemblyInDirectory(SdkAssemblyFilter.Create());
 
             if (assemblyDescriptor == null)
             {
@@ -56,6 +57,12 @@ namespace Net.Web.Api.Sdk.Injection.Installers
             }
 
             var assemblyList = GetAssemblyList(assemblyDescriptor);
+
+            if (assemblyList == null)
+            {
+                return;
+            }
+
             var registrationList = GetRegistrationList(assemblyList);
 
             foreach(var item in registrationList)

@@ -1,14 +1,16 @@
 ﻿using System;
-using System.Configuration;
+using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using System.Xml.Linq;
 
 namespace Net.Web.Api.Sdk.Configurations.Token
 {
-    /// <inheritdoc />
     /// <summary>
     /// Class TokenElementCollection.
+    /// Keyed collection of <see cref="TokenElement" /> entries read from the <c>tokens</c> element.
     /// </summary>
-    /// <seealso cref="T:System.Configuration.ConfigurationElementCollection" />
-    public class TokenElementCollection : ConfigurationElementCollection
+    public class TokenElementCollection : IEnumerable<TokenElement>
     {
         #region Private Constants
 
@@ -19,67 +21,106 @@ namespace Net.Web.Api.Sdk.Configurations.Token
 
         #endregion
 
-        #region ConfigurationElementCollection Overrides
+        #region Private Properties
 
-        /// <inheritdoc />
         /// <summary>
-        /// Gets the name used to identify this collection of elements in the configuration file when overridden in a derived class.
+        /// The elements
         /// </summary>
-        /// <value>The name of the element.</value>
-        protected override string ElementName => COLLECTION_ELEMENT_NAME;
+        private readonly List<TokenElement> _elements = new List<TokenElement>();
 
-        /// <inheritdoc />
-        /// <summary>
-        /// When overridden in a derived class, creates a new <see cref="T:System.Configuration.ConfigurationElement" />.
-        /// </summary>
-        /// <returns>A newly created <see cref="T:System.Configuration.ConfigurationElement" />.</returns>
-        protected override ConfigurationElement CreateNewElement()
-        {
-            return new TokenElement();
-        }
+        #endregion
 
-        /// <inheritdoc />
-        /// <summary>
-        /// Gets the element key for a specified configuration element when overridden in a derived class.
-        /// </summary>
-        /// <param name="element">The <see cref="T:System.Configuration.ConfigurationElement" /> to return the key for.</param>
-        /// <returns>An <see cref="T:System.Object" /> that acts as the key for the specified <see cref="T:System.Configuration.ConfigurationElement" />.</returns>
-        protected override object GetElementKey(ConfigurationElement element)
-        {
-            return ((TokenElement)element).Name;
-        }
+        #region Public Properties
 
-        /// <inheritdoc />
         /// <summary>
-        /// Indicates whether the specified <see cref="T:System.Configuration.ConfigurationElement" /> exists in the <see cref="T:System.Configuration.ConfigurationElementCollection" />.
+        /// Gets the number of elements in the collection.
         /// </summary>
-        /// <param name="elementName">The name of the element to verify.</param>
-        /// <returns>true if the element exists in the collection; otherwise, false. The default is false.</returns>
-        protected override bool IsElementName(string elementName)
-        {
-            return !string.IsNullOrEmpty(elementName) && COLLECTION_ELEMENT_NAME.Equals(elementName, StringComparison.OrdinalIgnoreCase);
-        }
-
-        /// <inheritdoc />
-        /// <summary>
-        /// Gets the type of the <see cref="T:System.Configuration.ConfigurationElementCollection" />.
-        /// </summary>
-        /// <value>The type of the collection.</value>
-        public override ConfigurationElementCollectionType CollectionType => ConfigurationElementCollectionType.BasicMap;
+        /// <value>The count.</value>
+        public int Count => _elements.Count;
 
         /// <summary>
         /// Gets the <see cref="TokenElement"/> with the specified key.
         /// </summary>
         /// <param name="key">The key.</param>
         /// <returns>TokenElement.</returns>
-        public new TokenElement this[string key] => BaseGet(key) as TokenElement;
+        public TokenElement this[string key] =>
+            _elements.FirstOrDefault(element => string.Equals(element.Name, key, StringComparison.OrdinalIgnoreCase));
 
         /// <summary>
         /// Gets the <see cref="TokenElement"/> with the specified identifier.
         /// </summary>
         /// <param name="id">The identifier.</param>
         /// <returns>TokenElement.</returns>
-        public TokenElement this[int id] => BaseGet(id) as TokenElement;
+        public TokenElement this[int id] => id >= 0 && id < _elements.Count ? _elements[id] : null;
+
+        #endregion
+
+        #region Public Methods
+
+        /// <summary>
+        /// Adds an element to the collection.
+        /// </summary>
+        /// <param name="element">The element.</param>
+        public void Add(TokenElement element)
+        {
+            if (element == null)
+            {
+                return;
+            }
+
+            _elements.Add(element);
+        }
+
+        #endregion
+
+        #region Internal Methods
+
+        /// <summary>
+        /// Loads the collection from the <c>tokens</c> configuration element.
+        /// </summary>
+        /// <param name="collectionElement">The collection element.</param>
+        /// <returns>TokenElementCollection.</returns>
+        internal static TokenElementCollection Load(XElement collectionElement)
+        {
+            var collection = new TokenElementCollection();
+
+            if (collectionElement == null)
+            {
+                return collection;
+            }
+
+            var tokenElements = collectionElement.Elements()
+                .Where(element => element.Name.LocalName.Equals(COLLECTION_ELEMENT_NAME, StringComparison.OrdinalIgnoreCase));
+
+            foreach (var tokenElement in tokenElements)
+            {
+                collection.Add(TokenElement.Load(tokenElement));
+            }
+
+            return collection;
+        }
+
+        #endregion
+
+        #region IEnumerable Implementations
+
+        /// <summary>
+        /// Returns an enumerator that iterates through the collection.
+        /// </summary>
+        /// <returns>An enumerator.</returns>
+        public IEnumerator<TokenElement> GetEnumerator()
+        {
+            return _elements.GetEnumerator();
+        }
+
+        /// <summary>
+        /// Returns an enumerator that iterates through the collection.
+        /// </summary>
+        /// <returns>An enumerator.</returns>
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
+        }
 
         #endregion
     }

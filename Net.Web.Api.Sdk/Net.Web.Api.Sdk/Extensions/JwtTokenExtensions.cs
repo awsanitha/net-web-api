@@ -1,13 +1,13 @@
-﻿using Net.Web.Api.Sdk.Models.Token;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
-using System.Net.Http;
-using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Text;
-using System.Web.Http.Controllers;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Net.Http.Headers;
+using Net.Web.Api.Sdk.Models.Token;
 
 namespace Net.Web.Api.Sdk.Extensions
 {
@@ -16,6 +16,15 @@ namespace Net.Web.Api.Sdk.Extensions
     /// </summary>
     public static class JwtTokenExtensions
     {
+        #region Private Constants
+
+        /// <summary>
+        /// The bearer scheme
+        /// </summary>
+        private const string BEARER_SCHEME = "Bearer";
+
+        #endregion
+
         #region Public Extensions
 
         /// <summary>
@@ -23,19 +32,9 @@ namespace Net.Web.Api.Sdk.Extensions
         /// </summary>
         /// <param name="actionContext">The action context.</param>
         /// <returns>System.String.</returns>
-        public static string GetToken(this HttpActionContext actionContext)
+        public static string GetToken(this ActionContext actionContext)
         {
-            return GetToken(actionContext.Request.Headers, out _);
-        }
-
-        /// <summary>
-        /// Gets the token.
-        /// </summary>
-        /// <param name="httpRequest">The HTTP request.</param>
-        /// <returns>System.String.</returns>
-        public static string GetToken(this HttpRequestMessage httpRequest)
-        {
-            return GetToken(httpRequest.Headers, out var _);
+            return GetToken(actionContext?.HttpContext?.Request, out _);
         }
 
         /// <summary>
@@ -44,9 +43,19 @@ namespace Net.Web.Api.Sdk.Extensions
         /// <param name="actionContext">The action context.</param>
         /// <param name="securityToken">The security token.</param>
         /// <returns>System.String.</returns>
-        public static string GetToken(this HttpActionContext actionContext, out JwtSecurityToken securityToken)
+        public static string GetToken(this ActionContext actionContext, out JwtSecurityToken securityToken)
         {
-            return GetToken(actionContext.Request.Headers, out securityToken);
+            return GetToken(actionContext?.HttpContext?.Request, out securityToken);
+        }
+
+        /// <summary>
+        /// Gets the token.
+        /// </summary>
+        /// <param name="httpRequest">The HTTP request.</param>
+        /// <returns>System.String.</returns>
+        public static string GetToken(this HttpRequest httpRequest)
+        {
+            return GetToken(httpRequest, out _);
         }
 
         /// <summary>
@@ -55,9 +64,34 @@ namespace Net.Web.Api.Sdk.Extensions
         /// <param name="httpRequest">The HTTP request.</param>
         /// <param name="securityToken">The security token.</param>
         /// <returns>System.String.</returns>
-        public static string GetToken(this HttpRequestMessage httpRequest, out JwtSecurityToken securityToken)
+        public static string GetToken(this HttpRequest httpRequest, out JwtSecurityToken securityToken)
         {
-            return GetToken(httpRequest.Headers, out securityToken);
+            securityToken = null;
+
+            var authorization = httpRequest?.Headers[HeaderNames.Authorization].ToString();
+
+            if (string.IsNullOrEmpty(authorization))
+            {
+                return null;
+            }
+
+            var separatorIndex = authorization.IndexOf(' ');
+
+            if (separatorIndex <= 0)
+            {
+                return null;
+            }
+
+            var scheme = authorization.Substring(0, separatorIndex);
+
+            if (!BEARER_SCHEME.Equals(scheme, StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            var parameter = authorization.Substring(separatorIndex + 1).Trim();
+
+            return parameter.GetToken(out securityToken);
         }
 
         /// <summary>
@@ -107,14 +141,14 @@ namespace Net.Web.Api.Sdk.Extensions
         /// <returns>DateTime.</returns>
         public static DateTime GetExpirationDate(this string token)
         {
-            if(string.IsNullOrEmpty(token))
+            if (string.IsNullOrEmpty(token))
             {
                 return DateTime.MinValue;
             }
 
             GetToken(token, out var jwt);
 
-            if(jwt == null)
+            if (jwt == null)
             {
                 return DateTime.MinValue;
             }
@@ -129,7 +163,7 @@ namespace Net.Web.Api.Sdk.Extensions
         /// <returns><c>true</c> if [is token one time use] [the specified claims]; otherwise, <c>false</c>.</returns>
         public static bool IsTokenOneTimeUse(this List<Claim> claims)
         {
-            if(claims == null || !claims.Any())
+            if (claims == null || !claims.Any())
             {
                 return false;
             }
@@ -137,28 +171,6 @@ namespace Net.Web.Api.Sdk.Extensions
             var oneTimeUseValue = claims.GetClaimByName(TokenInternalClaimNames.otu.ToString())?.Value;
 
             return !string.IsNullOrEmpty(oneTimeUseValue) && bool.TryParse(oneTimeUseValue, out var value) && value;
-        }
-
-        #endregion
-
-        #region Private Methods
-
-        /// <summary>
-        /// Gets the token.
-        /// </summary>
-        /// <param name="headers">The headers.</param>
-        /// <param name="securityToken">The security token.</param>
-        /// <returns>System.String.</returns>
-        private static string GetToken(HttpRequestHeaders headers, out JwtSecurityToken securityToken)
-        {
-            securityToken = null;
-
-            if (string.IsNullOrEmpty(headers.Authorization?.Scheme) || !headers.Authorization.Scheme.Equals("Bearer"))
-            {
-                return null;
-            }
-
-            return headers.Authorization.Parameter.GetToken(out securityToken);
         }
 
         #endregion

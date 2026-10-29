@@ -1,0 +1,27 @@
+checklist-*.md
+checklist-planner-*.md
+checklist-convert-*.md
+.artifacts/
+.migration-artifacts/
+progress.json
+migration-summary.md
+nextsteps.md
+
+# Build output
+[Bb]in/
+[Oo]bj/
+
+# Files the SDK extracts from its embedded resources at application start up
+**/SwaggerConfigurationSdk.json
+**/token-sdk.config
+**/packages.info
+**/doc-api-*.xml
+**/wwwroot/swagger.html
+**/wwwroot/swagger-ui-override.css
+**/wwwroot/swagger-ui-override.js
+**/wwwroot/logo-16x16.png
+**/wwwroot/logo-32x32.png
+
+# Runtime data written by the SDK
+**/db/
+**/wwwroot/Upload/

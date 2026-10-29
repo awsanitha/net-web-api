@@ -1,17 +1,18 @@
 ﻿using System;
-using System.Net.Http;
-using System.Web.Http.Controllers;
-using System.Web.Http.Dispatcher;
 using Castle.Windsor;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Controllers;
 
 namespace Net.Web.Api.Sdk.Injection.Compositions
 {
     /// <inheritdoc />
     /// <summary>
     /// Class WindsorCompositionRoot.
+    /// Activates MVC controllers from the Windsor container, as the Web API
+    /// <c>IHttpControllerActivator</c> implementation did.
     /// </summary>
-    /// <seealso cref="T:System.Web.Http.Dispatcher.IHttpControllerActivator" />
-    public class WindsorCompositionRoot : IHttpControllerActivator
+    /// <seealso cref="T:Microsoft.AspNetCore.Mvc.Controllers.IControllerActivator" />
+    public class WindsorCompositionRoot : IControllerActivator
     {
         #region Private Properties
 
@@ -30,75 +31,43 @@ namespace Net.Web.Api.Sdk.Injection.Compositions
         /// <param name="container">The container.</param>
         public WindsorCompositionRoot(IWindsorContainer container)
         {
-            _container = container;
+            _container = container ?? throw new ArgumentNullException(nameof(container));
         }
 
         #endregion
 
-        #region IHttpControllerActivator Implementations 
+        #region IControllerActivator Implementations
 
         /// <inheritdoc />
         /// <summary>
-        /// Creates an <see cref="T:System.Web.Http.Controllers.IHttpController" /> object.
+        /// Creates a controller instance for the current request.
         /// </summary>
-        /// <param name="request">The message request.</param>
-        /// <param name="controllerDescriptor">The HTTP controller descriptor.</param>
-        /// <param name="controllerType">The type of the controller.</param>
-        /// <returns>An <see cref="T:System.Web.Http.Controllers.IHttpController" /> object.</returns>
-        public IHttpController Create(HttpRequestMessage request, HttpControllerDescriptor controllerDescriptor, Type controllerType)
+        /// <param name="context">The controller context.</param>
+        /// <returns>The controller instance.</returns>
+        public object Create(ControllerContext context)
         {
-            var controller = (IHttpController)_container.Resolve(controllerType);
+            if (context == null)
+            {
+                throw new ArgumentNullException(nameof(context));
+            }
 
-            request.RegisterForDispose(new Release(() => _container.Release(controller)));
-
-            return controller;
+            return _container.Resolve(context.ActionDescriptor.ControllerTypeInfo.AsType());
         }
 
-        #endregion
-
-        #region Private Classes
-
         /// <inheritdoc />
         /// <summary>
-        /// Class Release. This class cannot be inherited.
+        /// Releases a controller instance at the end of the request.
         /// </summary>
-        /// <seealso cref="T:System.IDisposable" />
-        private sealed class Release : IDisposable
+        /// <param name="context">The controller context.</param>
+        /// <param name="controller">The controller.</param>
+        public void Release(ControllerContext context, object controller)
         {
-            #region Private Properties
-
-            /// <summary>
-            /// The release
-            /// </summary>
-            private readonly Action _release;
-
-            #endregion
-
-            #region Constructors
-
-            /// <summary>
-            /// Initializes a new instance of the <see cref="Release"/> class.
-            /// </summary>
-            /// <param name="release">The release.</param>
-            public Release(Action release)
+            if (controller == null)
             {
-                _release = release;
+                return;
             }
 
-            #endregion
-
-            #region IDisposable Implementations
-
-            /// <inheritdoc />
-            /// <summary>
-            /// Performs application-defined tasks associated with freeing, releasing, or resetting unmanaged resources.
-            /// </summary>
-            public void Dispose()
-            {
-                _release();
-            }
-
-            #endregion
+            _container.Release(controller);
         }
 
         #endregion

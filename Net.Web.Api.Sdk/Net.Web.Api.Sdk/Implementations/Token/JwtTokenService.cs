@@ -1,16 +1,15 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.Configuration;
 using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using System.IO;
 using System.Linq;
 using System.Security.Claims;
 using System.Text;
-using System.Web;
-using System.Web.Http.Controllers;
 using LiteDB;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
+using Net.Web.Api.Sdk.Common.Environment;
 using Net.Web.Api.Sdk.Configurations.Token;
 using Net.Web.Api.Sdk.Extensions;
 using Net.Web.Api.Sdk.Interfaces.Token;
@@ -26,11 +25,6 @@ namespace Net.Web.Api.Sdk.Implementations.Token
     public class JwtTokenService : IJwtTokenService
     {
         #region Constants
-
-        /// <summary>
-        /// The root path
-        /// </summary>
-        private const string ROOT_PATH = @"\";
 
         /// <summary>
         /// The token config file pattern
@@ -170,9 +164,9 @@ namespace Net.Web.Api.Sdk.Implementations.Token
         /// </summary>
         /// <param name="context">The context.</param>
         /// <returns>Dictionary&lt;System.String, System.String&gt;.</returns>
-        public virtual Dictionary<string, string> GetTokenPayload(HttpActionContext context)
+        public virtual Dictionary<string, string> GetTokenPayload(ActionContext context)
         {
-            var identity = context.RequestContext.Principal.Identity;
+            var identity = context.HttpContext.User?.Identity;
 
             if (identity == null || !identity.IsAuthenticated)
             {
@@ -190,9 +184,9 @@ namespace Net.Web.Api.Sdk.Implementations.Token
         /// </summary>
         /// <param name="context">The context.</param>
         /// <returns>Dictionary&lt;System.String, System.String&gt;.</returns>
-        public virtual Dictionary<string, string> GetIdentityPayload(HttpActionContext context)
+        public virtual Dictionary<string, string> GetIdentityPayload(ActionContext context)
         {
-            var principal = context.RequestContext.Principal;
+            var principal = context.HttpContext.User;
             var identity = principal?.Identity;
 
             if (identity == null || !identity.IsAuthenticated)
@@ -300,7 +294,7 @@ namespace Net.Web.Api.Sdk.Implementations.Token
                 var tokens = db.GetCollection<JwtTokenUsedOrRevoked>(TOKEN_DATA_COLLECTION);
                 var now = DateTime.UtcNow;
 
-                count = tokens.Delete(c => c.ExpirationDate.CompareTo(now) > 0);
+                count = tokens.DeleteMany(c => c.ExpirationDate > now);
             }
 
             return count;
@@ -319,7 +313,7 @@ namespace Net.Web.Api.Sdk.Implementations.Token
             using (var db = new LiteDatabase(_tokenDataBase))
             {
                 var tokens = db.GetCollection<JwtTokenUsedOrRevoked>(TOKEN_DATA_COLLECTION);
-                var found = tokens.Find(c => c.Token.Equals(token)).FirstOrDefault();
+                var found = tokens.Find(c => c.Token == token).FirstOrDefault();
 
                 if(found == null)
                 {
@@ -347,7 +341,7 @@ namespace Net.Web.Api.Sdk.Implementations.Token
             using (var db = new LiteDatabase(_tokenDataBase))
             {
                 var tokens = db.GetCollection<JwtTokenUsedOrRevoked>(TOKEN_DATA_COLLECTION);
-                var found = tokens.Find(c => c.Token.Equals(token)).FirstOrDefault();
+                var found = tokens.Find(c => c.Token == token).FirstOrDefault();
 
                 if (found == null)
                 {
@@ -387,7 +381,7 @@ namespace Net.Web.Api.Sdk.Implementations.Token
             using (var db = new LiteDatabase(_tokenDataBase))
             {
                 var tokens = db.GetCollection<JwtTokenUsedOrRevoked>(TOKEN_DATA_COLLECTION);
-                found = tokens.Find(c => c.Token.Equals(token)).FirstOrDefault();
+                found = tokens.Find(c => c.Token == token).FirstOrDefault();
 
                 if (found != null)
                 {
@@ -495,7 +489,7 @@ namespace Net.Web.Api.Sdk.Implementations.Token
         {
             Tokens = new Dictionary<string, JwtTokenModel>();
 
-            var rootPath = HttpContext.Current.Server.MapPath(ROOT_PATH);
+            var rootPath = SdkEnvironment.RootPath;
             var configurationFileList = Directory.GetFiles(rootPath, TOKEN_CONFIG_FILE_PATTERN, SearchOption.AllDirectories);
 
             if (!configurationFileList.Any())
@@ -505,9 +499,13 @@ namespace Net.Web.Api.Sdk.Implementations.Token
 
             foreach (var configurationFile in configurationFileList)
             {
-                var configMap = new ExeConfigurationFileMap { ExeConfigFilename = configurationFile };
-                var config = ConfigurationManager.OpenMappedExeConfiguration(configMap, ConfigurationUserLevel.None);
-                var tokenSection = (TokenConfigurationSection) config.GetSection(TokenConfigurationSection.SECTION_NAME);
+                var tokenSection = TokenConfigurationSection.Load(configurationFile);
+
+                if (tokenSection == null)
+                {
+                    continue;
+                }
+
                 var tokenList = LoadTokenList(tokenSection);
 
                 foreach (var token in tokenList)
@@ -529,7 +527,7 @@ namespace Net.Web.Api.Sdk.Implementations.Token
         /// </summary>
         private void SetupTokenDatabase()
         {
-            var rootPath = HttpContext.Current.Server.MapPath(ROOT_PATH);
+            var rootPath = SdkEnvironment.RootPath;
             var dataBasePath = Path.Combine(rootPath, "db");
 
             if(!Directory.Exists(dataBasePath))

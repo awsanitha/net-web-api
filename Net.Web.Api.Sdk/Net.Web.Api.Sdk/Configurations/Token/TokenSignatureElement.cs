@@ -1,13 +1,12 @@
-﻿using System.Configuration;
+﻿using System.Xml.Linq;
 
 namespace Net.Web.Api.Sdk.Configurations.Token
 {
-    /// <inheritdoc />
     /// <summary>
     /// Class TokenSecurityElement.
+    /// Plain object representation of a <c>signature</c> configuration element.
     /// </summary>
-    /// <seealso cref="T:System.Configuration.ConfigurationElement" />
-    public class TokenSignatureElement : ConfigurationElement
+    public class TokenSignatureElement
     {
         #region Private Constants
 
@@ -39,50 +38,51 @@ namespace Net.Web.Api.Sdk.Configurations.Token
         /// Gets or sets the pass phrase.
         /// </summary>
         /// <value>The pass phrase.</value>
-        [ConfigurationProperty(PASS_PHRASE, DefaultValue = "", IsKey = false, IsRequired = false)]
-        public string PassPhrase
-        {
-            get => (string)base[PASS_PHRASE];
-
-            set => base[PASS_PHRASE] = value;
-        }
+        public string PassPhrase { get; set; } = string.Empty;
 
         /// <summary>
         /// Gets or sets the signing certificate.
         /// </summary>
         /// <value>The signing certificate.</value>
-        [ConfigurationProperty(SIGNING_CERTIFICATE, DefaultValue = "", IsKey = false, IsRequired = false)]
-        public string SigningCertificate
-        {
-            get => (string)base[SIGNING_CERTIFICATE];
-
-            set => base[SIGNING_CERTIFICATE] = value;
-        }
+        public string SigningCertificate { get; set; } = string.Empty;
 
         /// <summary>
         /// Gets or sets the signing certificate password.
         /// </summary>
         /// <value>The signing certificate password.</value>
-        [ConfigurationProperty(SIGNING_CERTIFICATE_PASSWORD, DefaultValue = "", IsKey = false, IsRequired = false)]
-        public string SigningCertificatePassword
-        {
-            get => (string)base[SIGNING_CERTIFICATE_PASSWORD];
-
-            set => base[SIGNING_CERTIFICATE_PASSWORD] = value;
-        }
+        public string SigningCertificatePassword { get; set; } = string.Empty;
 
         /// <summary>
         /// Gets or sets the validating certificate.
         /// </summary>
         /// <value>The validating certificate.</value>
-        [ConfigurationProperty(VALIDATING_CERTIFICATE, DefaultValue = "", IsKey = false, IsRequired = false)]
-        public string ValidatingCertificate
-        {
-            get => (string)base[VALIDATING_CERTIFICATE];
+        public string ValidatingCertificate { get; set; } = string.Empty;
 
-            set => base[VALIDATING_CERTIFICATE] = value;
+        #endregion
+
+        #region Internal Methods
+
+        /// <summary>
+        /// Loads a signature element from its configuration element.
+        /// </summary>
+        /// <param name="signatureElement">The signature element.</param>
+        /// <returns>TokenSignatureElement.</returns>
+        internal static TokenSignatureElement Load(XElement signatureElement)
+        {
+            if (signatureElement == null)
+            {
+                return null;
+            }
+
+            return new TokenSignatureElement
+            {
+                PassPhrase = (string)signatureElement.Attribute(PASS_PHRASE) ?? string.Empty,
+                SigningCertificate = (string)signatureElement.Attribute(SIGNING_CERTIFICATE) ?? string.Empty,
+                SigningCertificatePassword = (string)signatureElement.Attribute(SIGNING_CERTIFICATE_PASSWORD) ?? string.Empty,
+                ValidatingCertificate = (string)signatureElement.Attribute(VALIDATING_CERTIFICATE) ?? string.Empty
+            };
         }
-        
+
         #endregion
     }
 }
