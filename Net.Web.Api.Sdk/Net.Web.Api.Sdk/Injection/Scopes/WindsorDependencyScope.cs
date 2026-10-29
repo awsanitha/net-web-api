@@ -1,18 +1,17 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Web.Http.Dependencies;
 using Castle.MicroKernel.Lifestyle;
 using Castle.Windsor;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Net.Web.Api.Sdk.Injection.Scopes
 {
     /// <inheritdoc />
     /// <summary>
     /// Class WindsorDependencyScope.
+    /// Wraps a Windsor lifetime scope as an ASP.NET Core service scope.
     /// </summary>
-    /// <seealso cref="T:System.Web.Http.Dependencies.IDependencyScope" />
-    public class WindsorDependencyScope : IDependencyScope
+    /// <seealso cref="T:Microsoft.Extensions.DependencyInjection.IServiceScope" />
+    public class WindsorDependencyScope : IServiceScope, IServiceProvider
     {
         #region Private Properties
 
@@ -36,13 +35,24 @@ namespace Net.Web.Api.Sdk.Injection.Scopes
         /// <param name="container">The container.</param>
         public WindsorDependencyScope(IWindsorContainer container)
         {
-            _container = container;
+            _container = container ?? throw new ArgumentNullException(nameof(container));
             _scope = container.BeginScope();
         }
 
         #endregion
 
-        #region IDependencyScope Implementations
+        #region IServiceScope Implementations
+
+        /// <inheritdoc />
+        /// <summary>
+        /// Gets the service provider of the scope.
+        /// </summary>
+        /// <value>The service provider.</value>
+        public IServiceProvider ServiceProvider => this;
+
+        #endregion
+
+        #region IServiceProvider Implementations
 
         /// <inheritdoc />
         /// <summary>
@@ -55,16 +65,9 @@ namespace Net.Web.Api.Sdk.Injection.Scopes
             return _container.Kernel.HasComponent(serviceType) ? _container.Resolve(serviceType) : null;
         }
 
-        /// <inheritdoc />
-        /// <summary>
-        /// Retrieves a collection of services from the scope.
-        /// </summary>
-        /// <param name="serviceType">The collection of services to be retrieved.</param>
-        /// <returns>The retrieved collection of services.</returns>
-        public IEnumerable<object> GetServices(Type serviceType)
-        {
-            return _container.ResolveAll(serviceType).Cast<object>();
-        }
+        #endregion
+
+        #region IDisposable Implementations
 
         /// <inheritdoc />
         /// <summary>

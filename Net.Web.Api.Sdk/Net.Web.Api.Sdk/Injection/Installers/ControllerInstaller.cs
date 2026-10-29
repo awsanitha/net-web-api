@@ -1,8 +1,8 @@
-﻿using System;
-using System.Web.Http;
-using Castle.MicroKernel.Registration;
+﻿using Castle.MicroKernel.Registration;
 using Castle.MicroKernel.SubSystems.Configuration;
 using Castle.Windsor;
+using Microsoft.AspNetCore.Mvc;
+using Net.Web.Api.Sdk.Injection.Filters;
 
 namespace Net.Web.Api.Sdk.Injection.Installers
 {
@@ -23,9 +23,9 @@ namespace Net.Web.Api.Sdk.Injection.Installers
         /// <param name="store">The configuration store.</param>
         public void Install(IWindsorContainer container, IConfigurationStore store)
         {
-            container.Register(Classes.FromAssemblyInDirectory(new AssemblyFilter(AppDomain.CurrentDomain.RelativeSearchPath))
-                .BasedOn<ApiController>()
-                .LifestylePerWebRequest());
+            container.Register(Classes.FromAssemblyInDirectory(SdkAssemblyFilter.Create())
+                .BasedOn<ControllerBase>()
+                .LifestyleScoped());
         }
 
         #endregion

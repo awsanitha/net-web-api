@@ -64,6 +64,28 @@ namespace Net.Web.Api.Sdk.Injection.Containers
             return _container.Resolve<T>();
         }
 
+        /// <summary>
+        /// Gets the service.
+        /// </summary>
+        /// <param name="serviceType">Type of the service.</param>
+        /// <returns>The resolved service, or <c>null</c> when the container holds no such component.</returns>
+        public object GetService(Type serviceType)
+        {
+            return _container != null && _container.Kernel.HasComponent(serviceType)
+                ? _container.Resolve(serviceType)
+                : null;
+        }
+
+        #endregion
+
+        #region Internal Properties
+
+        /// <summary>
+        /// Gets the underlying container.
+        /// </summary>
+        /// <value>The container.</value>
+        internal IWindsorContainer Container => _container;
+
         #endregion
 
         #region Internal Methods

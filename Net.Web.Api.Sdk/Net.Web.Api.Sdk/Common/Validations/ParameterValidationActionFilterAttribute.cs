@@ -1,10 +1,9 @@
-﻿using Newtonsoft.Json.Linq;
-using System.Linq;
+﻿using System.Linq;
 using System.Net;
-using System.Net.Http;
-using System.Net.Http.Formatting;
-using System.Web.Http.Controllers;
-using System.Web.Http.Filters;
+using Microsoft.AspNetCore.Mvc.Filters;
+using Net.Web.Api.Sdk.Common.Http;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace Net.Web.Api.Sdk.Common.Validations
 {
@@ -18,9 +17,9 @@ namespace Net.Web.Api.Sdk.Common.Validations
         #region Private Properties
 
         /// <summary>
-        /// The formatter
+        /// The serializer settings
         /// </summary>
-        private readonly JsonMediaTypeFormatter _formatter;
+        private readonly JsonSerializerSettings _serializerSettings;
 
         #endregion
 
@@ -29,10 +28,10 @@ namespace Net.Web.Api.Sdk.Common.Validations
         /// <summary>
         /// Initializes a new instance of the <see cref="ParameterValidationActionFilterAttribute"/> class.
         /// </summary>
-        /// <param name="formatter">The formatter.</param>
-        public ParameterValidationActionFilterAttribute(JsonMediaTypeFormatter formatter)
+        /// <param name="serializerSettings">The serializer settings.</param>
+        public ParameterValidationActionFilterAttribute(JsonSerializerSettings serializerSettings = null)
         {
-            _formatter = formatter;
+            _serializerSettings = serializerSettings ?? ResponseActionResult.DefaultSerializerSettings;
         }
 
         #endregion
@@ -43,13 +42,13 @@ namespace Net.Web.Api.Sdk.Common.Validations
         /// <summary>
         /// Occurs before the action method is invoked.
         /// </summary>
-        /// <param name="actionContext">The action context.</param>
-        public override void OnActionExecuting(HttpActionContext actionContext)
+        /// <param name="context">The action context.</param>
+        public override void OnActionExecuting(ActionExecutingContext context)
         {
-            if (actionContext.ModelState.IsValid == false)
+            if (context.ModelState.IsValid == false)
             {
-                actionContext.Response = actionContext.Request.CreateResponse(HttpStatusCode.BadRequest,
-                    CreateValidationErrorContent(actionContext), _formatter);
+                context.Result = new ResponseActionResult(HttpStatusCode.BadRequest,
+                    CreateValidationErrorContent(context), _serializerSettings);
             }
         }
 
@@ -60,16 +59,16 @@ namespace Net.Web.Api.Sdk.Common.Validations
         /// <summary>
         /// Creates the content of the validation error.
         /// </summary>
-        /// <param name="actionContext">The action context.</param>
+        /// <param name="context">The action context.</param>
         /// <returns>JArray.</returns>
-        private static JArray CreateValidationErrorContent(HttpActionContext actionContext)
+        private static JArray CreateValidationErrorContent(ActionExecutingContext context)
         {
             var result = (
-                from value 
-                in actionContext.ModelState.Values 
-                from message 
-                in value.Errors 
-                select message.ErrorMessage).Where(c=>!string.IsNullOrEmpty(c));
+                from value
+                in context.ModelState.Values
+                from message
+                in value.Errors
+                select message.ErrorMessage).Where(c => !string.IsNullOrEmpty(c));
 
             return JArray.FromObject(result.Distinct().ToList());
         }

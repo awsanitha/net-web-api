@@ -1,13 +1,15 @@
-﻿using System.Configuration;
+﻿using System;
+using System.Globalization;
+using System.Linq;
+using System.Xml.Linq;
 
 namespace Net.Web.Api.Sdk.Configurations.Token
 {
-    /// <inheritdoc />
     /// <summary>
     /// Class TokenDefinitionElement.
+    /// Plain object representation of a <c>definition</c> configuration element.
     /// </summary>
-    /// <seealso cref="T:System.Configuration.ConfigurationElement" />
-    public class TokenDefinitionElement : ConfigurationElement
+    public class TokenDefinitionElement
     {
         #region Private Constants
 
@@ -49,68 +51,104 @@ namespace Net.Web.Api.Sdk.Configurations.Token
         /// Gets or sets the issuer.
         /// </summary>
         /// <value>The issuer.</value>
-        [ConfigurationProperty(ISSUER, DefaultValue = "http://no.where.com", IsKey = false, IsRequired = true)]
-        public string Issuer
-        {
-            get => (string)base[ISSUER];
-
-            set => base[ISSUER] = value;
-        }
+        public string Issuer { get; set; } = "http://no.where.com";
 
         /// <summary>
         /// Gets or sets the intended audience.
         /// </summary>
         /// <value>The intended audience.</value>
-        [ConfigurationProperty(INTENDED_AUDIENCE, DefaultValue = "urn:no-where", IsKey = false, IsRequired = true)]
-        public string IntendedAudience
-        {
-            get => (string)base[INTENDED_AUDIENCE];
-
-            set => base[INTENDED_AUDIENCE] = value;
-        }
+        public string IntendedAudience { get; set; } = "urn:no-where";
 
         /// <summary>
         /// Gets or sets the expiration in minute.
         /// </summary>
         /// <value>The expiration in minute.</value>
-        [ConfigurationProperty(EXPIRATION_IN_MINUTE, DefaultValue = 15d, IsKey = false, IsRequired = true)]
-        public double ExpirationInMinute
-        {
-            get => (double)base[EXPIRATION_IN_MINUTE];
-
-            set => base[EXPIRATION_IN_MINUTE] = value;
-        }
+        public double ExpirationInMinute { get; set; } = 15d;
 
         /// <summary>
         /// Gets or sets a value indicating whether this instance is base64 encoded.
         /// </summary>
         /// <value><c>true</c> if this instance is base64 encoded; otherwise, <c>false</c>.</value>
-        [ConfigurationProperty(IS_BASE_64_ENCODED, DefaultValue = false, IsKey = false, IsRequired = false)]
-        public bool IsBase64Encoded
-        {
-            get => (bool)base[IS_BASE_64_ENCODED];
-
-            set => base[IS_BASE_64_ENCODED] = value;
-        }
+        public bool IsBase64Encoded { get; set; }
 
         /// <summary>
         /// Gets or sets a value indicating whether [one time use].
         /// </summary>
         /// <value><c>true</c> if [one time use]; otherwise, <c>false</c>.</value>
-        [ConfigurationProperty(ONE_TIME_USE, DefaultValue = false, IsKey = false, IsRequired = false)]
-        public bool OneTimeUse
-        {
-            get => (bool)base[ONE_TIME_USE];
-
-            set => base[ONE_TIME_USE] = value;
-        }
+        public bool OneTimeUse { get; set; }
 
         /// <summary>
         /// Gets the signature.
         /// </summary>
         /// <value>The signature.</value>
-        [ConfigurationProperty(SIGNATURE, IsRequired = true)]
-        public TokenSignatureElement Signature => (TokenSignatureElement)this[SIGNATURE];
+        public TokenSignatureElement Signature { get; internal set; } = new TokenSignatureElement();
+
+        #endregion
+
+        #region Internal Methods
+
+        /// <summary>
+        /// Loads a definition element from its configuration element.
+        /// </summary>
+        /// <param name="definitionElement">The definition element.</param>
+        /// <returns>TokenDefinitionElement.</returns>
+        internal static TokenDefinitionElement Load(XElement definitionElement)
+        {
+            if (definitionElement == null)
+            {
+                return null;
+            }
+
+            var definition = new TokenDefinitionElement();
+            var issuer = (string)definitionElement.Attribute(ISSUER);
+
+            if (!string.IsNullOrEmpty(issuer))
+            {
+                definition.Issuer = issuer;
+            }
+
+            var intendedAudience = (string)definitionElement.Attribute(INTENDED_AUDIENCE);
+
+            if (!string.IsNullOrEmpty(intendedAudience))
+            {
+                definition.IntendedAudience = intendedAudience;
+            }
+
+            var expiration = (string)definitionElement.Attribute(EXPIRATION_IN_MINUTE);
+
+            if (!string.IsNullOrEmpty(expiration)
+                && double.TryParse(expiration, NumberStyles.Float, CultureInfo.InvariantCulture, out var expirationValue))
+            {
+                definition.ExpirationInMinute = expirationValue;
+            }
+
+            definition.IsBase64Encoded = ReadBoolean(definitionElement, IS_BASE_64_ENCODED);
+            definition.OneTimeUse = ReadBoolean(definitionElement, ONE_TIME_USE);
+
+            var signatureElement = definitionElement.Elements()
+                .FirstOrDefault(element => element.Name.LocalName.Equals(SIGNATURE, StringComparison.OrdinalIgnoreCase));
+
+            definition.Signature = TokenSignatureElement.Load(signatureElement);
+
+            return definition;
+        }
+
+        #endregion
+
+        #region Private Methods
+
+        /// <summary>
+        /// Reads a boolean attribute, defaulting to <c>false</c> when absent or unparsable.
+        /// </summary>
+        /// <param name="element">The element.</param>
+        /// <param name="attributeName">Name of the attribute.</param>
+        /// <returns><c>true</c> when the attribute reads as true; otherwise, <c>false</c>.</returns>
+        private static bool ReadBoolean(XElement element, string attributeName)
+        {
+            var value = (string)element.Attribute(attributeName);
+
+            return !string.IsNullOrEmpty(value) && bool.TryParse(value, out var result) && result;
+        }
 
         #endregion
     }

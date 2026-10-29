@@ -1,6 +1,12 @@
-﻿using Microsoft.Web.Http;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net;
+using Asp.Versioning;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Cors;
+using Microsoft.AspNetCore.Mvc;
 using Net.Web.Api.Sdk.Common.Constants;
-using Net.Web.Api.Sdk.Controllers.Common;
 using Net.Web.Api.Sdk.Documentation.Attributes;
 using Net.Web.Api.Sdk.Extensions;
 using Net.Web.Api.Sdk.Interfaces.Token;
@@ -8,13 +14,7 @@ using Net.Web.Api.Sdk.Security.Attributes;
 using Net.Web.Api.Sdk.Web.Examples.Classes.Constants;
 using Net.Web.Api.Sdk.Web.Examples.Controllers.Common;
 using Net.Web.Api.Sdk.Web.Examples.Models;
-using Swashbuckle.Swagger.Annotations;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net;
-using System.Web.Http;
-using System.Web.Http.Cors;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace Net.Web.Api.Sdk.Web.Examples.Controllers.v1
 {
@@ -23,12 +23,12 @@ namespace Net.Web.Api.Sdk.Web.Examples.Controllers.v1
     /// Implements the <see cref="ExampleController" />
     /// </summary>
     /// <seealso cref="ExampleController" />
-    [EnableCors("*", "*", "*", SupportsCredentials = true)]
+    [EnableCors(SdkCorsConstants.DEFAULT_POLICY_NAME)]
     [AllowAnonymous]
     [ApiVersion("1.0")]
-    [RoutePrefix(RouteConstants.ROUTE_PREFIX_VERSION)]
+    [Route(RouteConstants.ROUTE_PREFIX_VERSION)]
     public class ExampleTokenController : ExampleController
-    {       
+    {
         #region Services
 
         /// <summary>
@@ -57,7 +57,8 @@ namespace Net.Web.Api.Sdk.Web.Examples.Controllers.v1
         /// <summary>
         /// Creates a new JWT Token.
         /// </summary>
-        /// <returns>IHttpActionResult.</returns>
+        /// <param name="paramaters">The parameters.</param>
+        /// <returns>IActionResult.</returns>
         [HttpPost]
         [Route(ROUTE_PREFIX + "createToken")]
         [AllowAnonymous]
@@ -65,10 +66,10 @@ namespace Net.Web.Api.Sdk.Web.Examples.Controllers.v1
         [SwaggerOperation(Tags = new[] { ExampleControllerGroups.SECURITY })]
         [SwaggerProduces(ConsumerProducerConstants.JSON)]
         [SwaggerConsumes(ConsumerProducerConstants.JSON)]
-        [SwaggerResponse(HttpStatusCode.OK, Type = typeof(CreateTokenResult))]
-        [SwaggerResponse(HttpStatusCode.BadRequest, Type = typeof(IList<string>), Description = ResponseDescriptionConstants.INVALID_PARAMETER)]
-        [SwaggerResponse(HttpStatusCode.InternalServerError, Description = ResponseDescriptionConstants.TECHNICAL_ERROR)]
-        public IHttpActionResult CreateToken(CreateTokenRequest paramaters)
+        [SwaggerResponse((int)HttpStatusCode.OK, Type = typeof(CreateTokenResult))]
+        [SwaggerResponse((int)HttpStatusCode.BadRequest, Type = typeof(IList<string>), Description = ResponseDescriptionConstants.INVALID_PARAMETER)]
+        [SwaggerResponse((int)HttpStatusCode.InternalServerError, Description = ResponseDescriptionConstants.TECHNICAL_ERROR)]
+        public IActionResult CreateToken([FromBody] CreateTokenRequest paramaters)
         {
             try
             {
@@ -91,23 +92,23 @@ namespace Net.Web.Api.Sdk.Web.Examples.Controllers.v1
         /// <summary>
         /// Revokes a token passed in the authorization header.
         /// </summary>
-        /// <returns>IHttpActionResult.</returns>
+        /// <returns>IActionResult.</returns>
         [HttpPost]
         [Route(ROUTE_PREFIX + "revokeToken")]
         [TokenAuthorize]
         [SwaggerMethodOrder(2)]
         [SwaggerOperation(Tags = new[] { ExampleControllerGroups.SECURITY })]
         [SwaggerProduces(ConsumerProducerConstants.JSON)]
-        [SwaggerResponse(HttpStatusCode.OK, Type = typeof(bool))]
-        [SwaggerResponse(HttpStatusCode.Forbidden, Description = ResponseDescriptionConstants.ACCESS_FORBIDDEN)]
-        [SwaggerResponse(HttpStatusCode.Unauthorized, Description = ResponseDescriptionConstants.AUTHORIZATION_FAILED)]
-        [SwaggerResponse(HttpStatusCode.InternalServerError, Description = ResponseDescriptionConstants.TECHNICAL_ERROR)]
-        public IHttpActionResult RevokeToken()
+        [SwaggerResponse((int)HttpStatusCode.OK, Type = typeof(bool))]
+        [SwaggerResponse((int)HttpStatusCode.Forbidden, Description = ResponseDescriptionConstants.ACCESS_FORBIDDEN)]
+        [SwaggerResponse((int)HttpStatusCode.Unauthorized, Description = ResponseDescriptionConstants.AUTHORIZATION_FAILED)]
+        [SwaggerResponse((int)HttpStatusCode.InternalServerError, Description = ResponseDescriptionConstants.TECHNICAL_ERROR)]
+        public IActionResult RevokeToken()
         {
             try
             {
-                var token = ActionContext.GetToken();
-                var claims = this.GetClaims().ToList(); ;
+                var token = HttpContext.Request.GetToken();
+                var claims = this.GetClaims().ToList();
 
                 return Ok(_tokenService.RevokeToken(token, claims));
             }
@@ -120,18 +121,18 @@ namespace Net.Web.Api.Sdk.Web.Examples.Controllers.v1
         /// <summary>
         /// Validates a token passed in the authorization header.
         /// </summary>
-        /// <returns>IHttpActionResult.</returns>
+        /// <returns>IActionResult.</returns>
         [HttpGet]
         [Route(ROUTE_PREFIX + "validateToken")]
         [TokenAuthorize]
         [SwaggerMethodOrder(3)]
         [SwaggerOperation(Tags = new[] { ExampleControllerGroups.SECURITY })]
         [SwaggerProduces(ConsumerProducerConstants.JSON)]
-        [SwaggerResponse(HttpStatusCode.OK, Type = typeof(bool))]
-        [SwaggerResponse(HttpStatusCode.Forbidden, Description = ResponseDescriptionConstants.ACCESS_FORBIDDEN)]
-        [SwaggerResponse(HttpStatusCode.Unauthorized, Description = ResponseDescriptionConstants.AUTHORIZATION_FAILED)]
-        [SwaggerResponse(HttpStatusCode.InternalServerError, Description = ResponseDescriptionConstants.TECHNICAL_ERROR)]
-        public IHttpActionResult ValidateToken()
+        [SwaggerResponse((int)HttpStatusCode.OK, Type = typeof(bool))]
+        [SwaggerResponse((int)HttpStatusCode.Forbidden, Description = ResponseDescriptionConstants.ACCESS_FORBIDDEN)]
+        [SwaggerResponse((int)HttpStatusCode.Unauthorized, Description = ResponseDescriptionConstants.AUTHORIZATION_FAILED)]
+        [SwaggerResponse((int)HttpStatusCode.InternalServerError, Description = ResponseDescriptionConstants.TECHNICAL_ERROR)]
+        public IActionResult ValidateToken()
         {
             try
             {

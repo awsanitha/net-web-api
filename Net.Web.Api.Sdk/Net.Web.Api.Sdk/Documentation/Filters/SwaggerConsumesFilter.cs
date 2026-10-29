@@ -1,7 +1,8 @@
-﻿using Net.Web.Api.Sdk.Documentation.Attributes;
-using Swashbuckle.Swagger;
+﻿using System.Collections.Generic;
 using System.Linq;
-using System.Web.Http.Description;
+using Microsoft.OpenApi.Models;
+using Net.Web.Api.Sdk.Documentation.Attributes;
+using Swashbuckle.AspNetCore.SwaggerGen;
 
 namespace Net.Web.Api.Sdk.Documentation.Filters
 {
@@ -18,20 +19,37 @@ namespace Net.Web.Api.Sdk.Documentation.Filters
         /// Applies the specified operation.
         /// </summary>
         /// <param name="operation">The operation.</param>
-        /// <param name="schemaRegistry">The schema registry.</param>
-        /// <param name="apiDescription">The API description.</param>
-        /// <exception cref="T:System.NotImplementedException"></exception>
-        public void Apply(Operation operation, SchemaRegistry schemaRegistry, ApiDescription apiDescription)
+        /// <param name="context">The operation filter context.</param>
+        public void Apply(OpenApiOperation operation, OperationFilterContext context)
         {
-            var attribute = apiDescription.GetControllerAndActionAttributes<SwaggerConsumesAttribute>().SingleOrDefault();
+            var attribute = SwaggerFilterHelper.GetControllerAndActionAttributes<SwaggerConsumesAttribute>(context).SingleOrDefault();
 
             if (attribute == null)
             {
                 return;
             }
 
-            operation.consumes.Clear();
-            operation.consumes = attribute.ContentTypes.ToList();
+            var contentTypes = attribute.ContentTypes?.ToList();
+
+            if (contentTypes == null || contentTypes.Count == 0)
+            {
+                return;
+            }
+
+            var mediaType = operation.RequestBody?.Content?.Values.FirstOrDefault();
+            var content = new Dictionary<string, OpenApiMediaType>();
+
+            foreach (var contentType in contentTypes)
+            {
+                content[contentType] = mediaType ?? new OpenApiMediaType();
+            }
+
+            if (operation.RequestBody == null)
+            {
+                operation.RequestBody = new OpenApiRequestBody();
+            }
+
+            operation.RequestBody.Content = content;
         }
 
         #endregion

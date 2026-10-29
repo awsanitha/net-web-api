@@ -1,60 +1,73 @@
-﻿using System.IdentityModel.Tokens.Jwt;
-using System.Net.Http;
+﻿using System;
+using System.IdentityModel.Tokens.Jwt;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Web;
+using Microsoft.AspNetCore.Http;
 using Net.Web.Api.Sdk.Extensions;
 using Net.Web.Api.Sdk.Injection.Containers;
 using Net.Web.Api.Sdk.Interfaces.Token;
 
 namespace Net.Web.Api.Sdk.Security.Handlers
 {
-    /// <inheritdoc />
     /// <summary>
     /// Class JwtTokenHandler.
+    /// Middleware replacement of the Web API <c>DelegatingHandler</c>: it validates the bearer token
+    /// of the incoming request and publishes the resulting principal on the request context.
     /// </summary>
-    /// <seealso cref="T:System.Net.Http.DelegatingHandler" />
-    public class JwtTokenHandler : DelegatingHandler
+    public class JwtTokenHandler
     {
-        #region DelegatingHandler Overrides
+        #region Private Properties
 
-        /// <inheritdoc />
         /// <summary>
-        /// send as an asynchronous operation.
+        /// The next middleware in the pipeline
         /// </summary>
-        /// <param name="request">The HTTP request message to send to the server.</param>
-        /// <param name="cancellationToken">A cancellation token to cancel operation.</param>
-        /// <returns>Returns <see cref="T:System.Threading.Tasks.Task`1" />. The task object representing the asynchronous operation.</returns>
-        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        private readonly RequestDelegate _next;
+
+        #endregion
+
+        #region Constructors
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="JwtTokenHandler"/> class.
+        /// </summary>
+        /// <param name="next">The next middleware.</param>
+        public JwtTokenHandler(RequestDelegate next)
+        {
+            _next = next ?? throw new ArgumentNullException(nameof(next));
+        }
+
+        #endregion
+
+        #region Public Methods
+
+        /// <summary>
+        /// invoke as an asynchronous operation.
+        /// </summary>
+        /// <param name="context">The HTTP context.</param>
+        /// <returns>Task.</returns>
+        public async Task InvokeAsync(HttpContext context)
         {
             try
             {
-                var token = request.GetToken(out var securityToken);
+                var token = context.Request.GetToken(out var securityToken);
 
-                if (string.IsNullOrEmpty(token) || securityToken == null)
+                if (!string.IsNullOrEmpty(token) && securityToken != null)
                 {
-                    return await base.SendAsync(request, cancellationToken);
+                    var tokenHandler = new JwtSecurityTokenHandler();
+                    var service = InjectionContainer.Instance.GetService<IJwtTokenService>();
+                    var principal = tokenHandler.ValidateToken(token, service.GetTokenValidationParameters(), out _);
+
+                    context.User = principal;
+
+                    Thread.CurrentPrincipal = principal;
                 }
-
-                var tokenHandler = new JwtSecurityTokenHandler();
-                var service = InjectionContainer.Instance.GetService<IJwtTokenService>();
-                var principal = tokenHandler.ValidateToken(token, service.GetTokenValidationParameters(), out _);
-
-                if (HttpContext.Current != null)
-                {
-                    HttpContext.Current.User = principal;
-                }
-
-                Thread.CurrentPrincipal = principal;
-
-                return await base.SendAsync(request, cancellationToken);
             }
             catch
             {
                 // ignored
             }
 
-            return await base.SendAsync(request, cancellationToken);
+            await _next(context);
         }
 
         #endregion

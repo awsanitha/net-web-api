@@ -5,7 +5,7 @@
   "buttonBackgroundColor": "#39772B",
   "buttonBackgroundHoverColor": "#5FAD4D",
   "bodyBackgroundColor": "#B2BFAB",
-  "logo": "/Images/Logos/web-api-sdk-logo.png",
-  "icon16": "/Images/Icons/web-api-sdk-icon-16.png",
-  "icon32": "/Images/Icons/web-api-sdk-icon-32.png"
+  "logo": "/images/logos/web-api-sdk-logo.png",
+  "icon16": "/images/icons/web-api-sdk-icon-16.png",
+  "icon32": "/images/icons/web-api-sdk-icon-32.png"
 }

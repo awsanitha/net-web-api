@@ -1,14 +1,14 @@
-﻿using Net.Web.Api.Sdk.Interfaces.Information;
+using Net.Web.Api.Sdk.Interfaces.Information;
 using Net.Web.Api.Sdk.Interfaces.Token;
+using Net.Web.Api.Sdk.Common.Environment;
 using Net.Web.Api.Sdk.Properties;
-using NuGet;
+using NuGet.Packaging;
 using System;
 using System.Collections.Generic;
 using System.Dynamic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Web;
 
 namespace Net.Web.Api.Sdk.Implementations.Information
 {
@@ -29,7 +29,7 @@ namespace Net.Web.Api.Sdk.Implementations.Information
         /// <summary>
         /// The nuget information file name
         /// </summary>
-        private const string NUGET_INFORMATION_FILE_NAME = "packages.config";
+        private const string NUGET_INFORMATION_FILE_NAME = "packages.info.config";
 
         #endregion
 
@@ -67,7 +67,7 @@ namespace Net.Web.Api.Sdk.Implementations.Information
         {           
             var assembly = Assembly.GetExecutingAssembly();
             var sourceResource = $"{assembly.GetName().Name}.{NUGET_INFORMATION_FILE_NAME}";
-            var rootPath = HttpContext.Current.Server.MapPath(@"\");
+            var rootPath = SdkEnvironment.RootPath;
             var nugetPackageConfigFileName = Path.Combine(rootPath, PACKAGE_INFORMATION_FILE_NAME);
 
             string content = null;
@@ -98,22 +98,25 @@ namespace Net.Web.Api.Sdk.Implementations.Information
 
             if(System.IO.File.Exists(nugetPackageConfigFileName))
             {
-                var packageConfiguration = new PackageReferenceFile(nugetPackageConfigFileName);
-                var allPacakges = packageConfiguration.GetPackageReferences();
-                var nugetPackages = new List<dynamic>();
-
-                foreach (var package in allPacakges)
+                using (var stream = System.IO.File.OpenRead(nugetPackageConfigFileName))
                 {
-                    dynamic onePackage = new ExpandoObject();
+                    var packageConfiguration = new PackagesConfigReader(stream);
+                    var allPacakges = packageConfiguration.GetPackages();
+                    var nugetPackages = new List<dynamic>();
 
-                    onePackage.name = package.Id;
-                    onePackage.version = package.Version.ToString();
-                    onePackage.framework = package.TargetFramework.Version.ToString();
+                    foreach (var package in allPacakges)
+                    {
+                        dynamic onePackage = new ExpandoObject();
 
-                    nugetPackages.Add(onePackage);
+                        onePackage.name = package.PackageIdentity.Id;
+                        onePackage.version = package.PackageIdentity.Version.ToString();
+                        onePackage.framework = package.TargetFramework.Version.ToString();
+
+                        nugetPackages.Add(onePackage);
+                    }
+
+                    result.packages = nugetPackages;
                 }
-
-                result.packages = nugetPackages;
             }
 
             return result;

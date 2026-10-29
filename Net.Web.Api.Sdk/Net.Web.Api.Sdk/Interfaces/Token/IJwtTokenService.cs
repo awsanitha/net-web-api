@@ -1,6 +1,6 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Security.Claims;
-using System.Web.Http.Controllers;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using Net.Web.Api.Sdk.Injection.Attributes;
 using Net.Web.Api.Sdk.Models.Token;
@@ -42,14 +42,14 @@ namespace Net.Web.Api.Sdk.Interfaces.Token
         /// </summary>
         /// <param name="context">The context.</param>
         /// <returns>Dictionary&lt;System.String, System.String&gt;.</returns>
-        Dictionary<string, string> GetTokenPayload(HttpActionContext context);
+        Dictionary<string, string> GetTokenPayload(ActionContext context);
 
         /// <summary>
         /// Gets the identity payload.
         /// </summary>
         /// <param name="context">The context.</param>
         /// <returns>Dictionary&lt;System.String, System.String&gt;.</returns>
-        Dictionary<string, string> GetIdentityPayload(HttpActionContext context);
+        Dictionary<string, string> GetIdentityPayload(ActionContext context);
 
         /// <summary>
         /// Determines whether [is token revoked] [the specified token].

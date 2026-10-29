@@ -1,13 +1,14 @@
-﻿using System.Configuration;
+﻿using System;
+using System.Linq;
+using System.Xml.Linq;
 
 namespace Net.Web.Api.Sdk.Configurations.Token
 {
-    /// <inheritdoc />
     /// <summary>
     /// Class TokenElement.
+    /// Plain object representation of a <c>token</c> configuration element.
     /// </summary>
-    /// <seealso cref="T:System.Configuration.ConfigurationElement" />
-    public class TokenElement : ConfigurationElement
+    public class TokenElement
     {
         #region Private Constants
 
@@ -29,15 +30,39 @@ namespace Net.Web.Api.Sdk.Configurations.Token
         /// Gets the name.
         /// </summary>
         /// <value>The name.</value>
-        [ConfigurationProperty(TOKEN_NAME, IsRequired = true, IsKey = true)]
-        public string Name => (string)this[TOKEN_NAME];
+        public string Name { get; internal set; }
 
         /// <summary>
         /// Gets the definition.
         /// </summary>
         /// <value>The definition.</value>
-        [ConfigurationProperty(TOKEN_DEFINITION, IsRequired = true, IsKey = false)]
-        public TokenDefinitionElement Definition => (TokenDefinitionElement)this[TOKEN_DEFINITION];
+        public TokenDefinitionElement Definition { get; internal set; }
+
+        #endregion
+
+        #region Internal Methods
+
+        /// <summary>
+        /// Loads a token element from its configuration element.
+        /// </summary>
+        /// <param name="tokenElement">The token element.</param>
+        /// <returns>TokenElement.</returns>
+        internal static TokenElement Load(XElement tokenElement)
+        {
+            if (tokenElement == null)
+            {
+                return null;
+            }
+
+            var definitionElement = tokenElement.Elements()
+                .FirstOrDefault(element => element.Name.LocalName.Equals(TOKEN_DEFINITION, StringComparison.OrdinalIgnoreCase));
+
+            return new TokenElement
+            {
+                Name = (string)tokenElement.Attribute(TOKEN_NAME),
+                Definition = TokenDefinitionElement.Load(definitionElement)
+            };
+        }
 
         #endregion
     }

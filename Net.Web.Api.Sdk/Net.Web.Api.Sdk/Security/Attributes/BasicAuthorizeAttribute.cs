@@ -1,27 +1,26 @@
-﻿using Net.Web.Api.Sdk.Common.Http;
-using Net.Web.Api.Sdk.Extensions;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Serialization;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Net;
-using System.Net.Http.Formatting;
+using System.Security.Claims;
 using System.Security.Principal;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Web.Http.Filters;
+using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.Net.Http.Headers;
+using Net.Web.Api.Sdk.Common.Http;
+using Net.Web.Api.Sdk.Extensions;
 
 namespace Net.Web.Api.Sdk.Security.Attributes
 {
     /// <summary>
     /// Class BasicAuthorizeAttribute.
     /// Implements the <see cref="Attribute" />
-    /// Implements the <see cref="IAuthenticationFilter" />
+    /// Implements the <see cref="IAsyncAuthorizationFilter" />
     /// </summary>
     /// <seealso cref="Attribute" />
-    /// <seealso cref="IAuthenticationFilter" />
-    public abstract class BasicAuthorizeAttribute : Attribute, IAuthenticationFilter
+    /// <seealso cref="IAsyncAuthorizationFilter" />
+    public abstract class BasicAuthorizeAttribute : Attribute, IAsyncAuthorizationFilter
     {
         #region Internal Constants
 
@@ -53,23 +52,6 @@ namespace Net.Web.Api.Sdk.Security.Attributes
 
         #endregion
 
-        #region Private Properties
-
-        /// <summary>
-        /// The default formatter
-        /// </summary>
-        private static readonly JsonMediaTypeFormatter _defaultFormatter = new JsonMediaTypeFormatter
-        {
-            SerializerSettings =
-            {
-                DateFormatHandling = DateFormatHandling.MicrosoftDateFormat,
-                DateTimeZoneHandling = DateTimeZoneHandling.Local,
-                ContractResolver = new CamelCasePropertyNamesContractResolver()
-            }
-        };
-
-        #endregion
-
         #region Abscrtact Methods
 
         /// <summary>
@@ -95,45 +77,49 @@ namespace Net.Web.Api.Sdk.Security.Attributes
 
         #endregion
 
-        #region IAuthenticationFilter Implementations
+        #region IAsyncAuthorizationFilter Implementations
 
         /// <summary>
-        /// authenticate as an asynchronous operation.
+        /// authorize as an asynchronous operation.
         /// </summary>
-        /// <param name="context">The authentication context.</param>
-        /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+        /// <param name="context">The authorization filter context.</param>
         /// <returns>A Task that will perform authentication.</returns>
-        public async Task AuthenticateAsync(HttpAuthenticationContext context, CancellationToken cancellationToken)
+        public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
         {
-            var request = context.Request;
-            var authorization = request.Headers.Authorization;
+            var cancellationToken = context.HttpContext.RequestAborted;
+            var authorization = context.HttpContext.Request.Headers[HeaderNames.Authorization].ToString();
 
-            if (authorization == null)
+            if (string.IsNullOrEmpty(authorization))
             {
-                context.ErrorResult = new ResponseActionResult(request, HttpStatusCode.Forbidden);
+                context.Result = new ResponseActionResult(HttpStatusCode.Forbidden);
 
                 return;
             }
 
-            if (!AUTHORIZATION_BASIC.Equals(authorization.Scheme))
+            var separatorIndex = authorization.IndexOf(' ');
+            var scheme = separatorIndex > 0 ? authorization.Substring(0, separatorIndex) : authorization;
+
+            if (!AUTHORIZATION_BASIC.Equals(scheme, StringComparison.Ordinal))
             {
-                context.ErrorResult = new ResponseActionResult(request, HttpStatusCode.Forbidden);
+                context.Result = new ResponseActionResult(HttpStatusCode.Forbidden);
 
                 return;
             }
 
-            if (string.IsNullOrEmpty(authorization.Parameter))
+            var parameter = separatorIndex > 0 ? authorization.Substring(separatorIndex + 1).Trim() : string.Empty;
+
+            if (string.IsNullOrEmpty(parameter))
             {
-                context.ErrorResult = new ResponseActionResult(request, HttpStatusCode.Unauthorized);
+                Unauthorized(context, null);
 
                 return;
             }
 
-            var userNameAndPasword = ExtractUserNameAndPassword(authorization.Parameter);
+            var userNameAndPasword = ExtractUserNameAndPassword(parameter);
 
             if (userNameAndPasword == null)
             {
-                context.ErrorResult = new ResponseActionResult(request, HttpStatusCode.Unauthorized);
+                Unauthorized(context, null);
 
                 return;
             }
@@ -145,33 +131,32 @@ namespace Net.Web.Api.Sdk.Security.Attributes
 
             if (principal == null)
             {
-                context.ErrorResult = new ResponseActionResult(request, HttpStatusCode.Unauthorized, authenticationResult);
+                Unauthorized(context, authenticationResult);
             }
             else
             {
-                context.Principal = principal;
+                context.HttpContext.User = principal as ClaimsPrincipal ?? new ClaimsPrincipal(principal.Identity);
             }
-        }
-
-        /// <summary>
-        /// Challenges the asynchronous.
-        /// </summary>
-        /// <param name="context">The context.</param>
-        /// <param name="cancellationToken">The cancellation token.</param>
-        /// <returns>Task.</returns>
-        public Task ChallengeAsync(HttpAuthenticationChallengeContext context, CancellationToken cancellationToken)
-        {
-            if (EnableChallenge)
-            {
-                Challenge(context);
-            }
-
-            return Task.FromResult(0);
         }
 
         #endregion
 
         #region Private Methods
+
+        /// <summary>
+        /// Sets an unauthorized result and appends the challenge when challenging is enabled.
+        /// </summary>
+        /// <param name="context">The context.</param>
+        /// <param name="content">The content.</param>
+        private void Unauthorized(AuthorizationFilterContext context, object content)
+        {
+            context.Result = new ResponseActionResult(HttpStatusCode.Unauthorized, content);
+
+            if (EnableChallenge)
+            {
+                Challenge(context);
+            }
+        }
 
         /// <summary>
         /// Extracts the user name and password.
@@ -230,9 +215,16 @@ namespace Net.Web.Api.Sdk.Security.Attributes
         /// Challenges the specified context.
         /// </summary>
         /// <param name="context">The context.</param>
-        private void Challenge(HttpAuthenticationChallengeContext context)
+        private void Challenge(AuthorizationFilterContext context)
         {
-            var parameter = string.IsNullOrEmpty(Realm) ? null : $@"{REALM}="" + Realm + @""";
+            var parameter = string.IsNullOrEmpty(Realm) ? null : $"{REALM}=\"{Realm}\"";
+
+            if (string.IsNullOrEmpty(parameter))
+            {
+                context.ChallengeWith(AUTHORIZATION_BASIC);
+
+                return;
+            }
 
             context.ChallengeWith(AUTHORIZATION_BASIC, parameter);
         }
